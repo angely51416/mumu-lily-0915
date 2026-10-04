@@ -1,0 +1,1128 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>第一年的冒險</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Huninn&family=Noto+Serif+TC:wght@500;700&display=swap" rel="stylesheet">
+<style>
+/* 莫蘭迪雙人對戰：上方兩位玩家與骰子、中間 7×8 愛心棋盤、下方行動列與手牌；特效浮在最上層 */
+:root{
+  color-scheme:light;
+  --bg:#E4E0D8;--surface:#EFEBE5;--card:#F7F4EF;--ink:#4A4E58;--soft:#80838B;--line:#D3CCC2;
+  --him:#8FA3B8;--him-soft:#D3DCE5;--her:#C99A93;--her-soft:#EDD9D4;
+  --stone:#ABA49B;--gold:#C9AE6A;--gold-soft:#EADFBF;--night:#5B6374;--sel:#D9C48F;--warn:#9C6F69;
+  --font:"Huninn","PingFang TC","Noto Sans TC","Microsoft JhengHei",sans-serif;
+  --serif:"Noto Serif TC","Songti TC","PMingLiU",serif;
+}
+html,body{height:100%}
+[hidden]{display:none!important}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--font);line-height:1.6;-webkit-tap-highlight-color:transparent;overflow-x:hidden}
+*,*::before,*::after{box-sizing:border-box}
+button{font-family:inherit;cursor:pointer;color:inherit}
+button:focus-visible,input:focus-visible{outline:3px solid var(--gold);outline-offset:2px}
+h1,h2,h3{font-weight:normal;margin:0;text-wrap:balance}
+.screen{display:none;flex-direction:column;align-items:center;min-height:100%;padding-block:16px 28px;padding-inline:16px;position:relative;z-index:1}
+.screen.on{display:flex}
+.btn{font-size:16px;border:0;border-radius:999px;padding:12px 24px;background:var(--ink);color:var(--card);transition:transform .15s,opacity .2s}
+.btn:active{transform:scale(.95)}
+.btn:disabled{opacity:.35;cursor:default}
+.btn.ghost{background:var(--card);border:1.5px solid var(--line);color:var(--ink);padding:10px 16px;font-size:15px}
+#game .actions .btn{padding:9px 16px;font-size:15px}
+.btn.warn{background:var(--warn)}
+.btn.goldb{background:var(--gold);color:#3F3A2E}
+.muted{color:var(--soft);font-size:14px}
+.row{display:flex;gap:10px;justify-content:center;flex-wrap:wrap;align-items:center}
+
+/* ambient floating hearts */
+#ambient{position:fixed;inset:0;pointer-events:none;z-index:0;overflow:hidden}
+#ambient i{position:absolute;bottom:-40px;width:18px;height:18px;opacity:.0;animation:floatUp linear infinite}
+#ambient svg{width:100%;height:100%}
+@keyframes floatUp{0%{transform:translateY(0) rotate(0);opacity:0}10%{opacity:.35}90%{opacity:.25}100%{transform:translateY(-110vh) rotate(40deg);opacity:0}}
+#fx{position:fixed;inset:0;pointer-events:none;z-index:30;overflow:hidden}
+#fx .p{position:absolute;left:0;top:0;will-change:transform,opacity}
+
+/* intro */
+#intro{justify-content:center;text-align:center;gap:16px;min-height:100vh;min-height:100dvh}
+#intro h1{font-family:var(--serif);font-weight:700;font-size:44px;letter-spacing:.14em}
+#intro .bob{animation:bob 2.4s ease-in-out infinite}
+#intro .bob:nth-child(2){animation-delay:-1.2s}
+@keyframes bob{50%{transform:translateY(-8px)}}
+#pass{font-family:inherit;font-size:28px;letter-spacing:.5em;text-align:center;width:180px;padding:10px 0 10px .5em;border:1.5px solid var(--line);border-radius:14px;background:var(--card);color:var(--ink)}
+
+/* game */
+#game{gap:6px;height:100%;min-height:0;overflow:hidden;padding-block:8px 10px}
+#game > *{flex:none}
+#game .boardwrap{flex:1 1 auto;min-height:0;display:flex;align-items:center;justify-content:center}
+.topline{width:min(100%,460px);display:flex;gap:8px;align-items:center}
+.topline .banner{flex:1;width:auto}
+.rulesmini{flex:none;border:1.5px solid var(--line);background:var(--card);border-radius:999px;padding:4px 12px;font-size:13px}
+.players{width:min(100%,460px);display:grid;grid-template-columns:1fr auto 1fr;gap:6px;align-items:center}
+.player{display:flex;flex-direction:column;align-items:center;gap:0;padding:4px;border-radius:18px;border:2px solid transparent;transition:background .3s,border-color .3s,transform .3s;min-width:0}
+.player.active{background:var(--card);border-color:var(--pc);transform:scale(1.04)}
+.player.active .av{animation:bob 1.6s ease-in-out infinite}
+.player .nm{font-size:14px;font-weight:bold;line-height:1.3}
+.player .st{font-size:11px;color:var(--soft);line-height:1.3}
+.player .say{font-size:12px;background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:0 8px;white-space:nowrap;max-width:100%;overflow:hidden;text-overflow:ellipsis;line-height:1.6;margin-top:2px}
+.player .say.new{animation:sayPop .5s cubic-bezier(.2,1.6,.4,1)}
+@keyframes sayPop{from{transform:scale(.3) translateY(6px);opacity:0}}
+.egg .flip .front{background:linear-gradient(135deg,#C9AE6A,#E9D9A6);color:#4A4E58}
+.egg .flip{width:220px;height:150px}
+.egg .flip .back{font-size:15px;line-height:1.6;padding:14px}
+.player .st{font-size:12px;line-height:1.4;color:var(--soft);font-variant-numeric:tabular-nums;white-space:nowrap}
+.player .tag{font-size:11px;border-radius:999px;padding:0 8px;background:var(--pcs);min-height:16px;line-height:16px;white-space:nowrap}
+.player .tag:empty{background:transparent}
+.p0{--pc:var(--him);--pcs:var(--him-soft)}
+.p1{--pc:var(--her);--pcs:var(--her-soft)}
+.diebox{display:flex;flex-direction:column;align-items:center;gap:4px}
+.dice{display:flex;gap:6px}
+.die{width:50px;height:50px;border-radius:14px;background:var(--card);border:1.5px solid var(--line);display:grid;grid-template:repeat(3,1fr)/repeat(3,1fr);padding:8px;gap:2px;box-shadow:0 3px 0 var(--line)}
+.die i{display:block;width:9px;height:9px;border-radius:50%;place-self:center}
+.die i.on{background:var(--ink)}
+.die.gold{border-color:var(--gold);background:var(--gold-soft)}
+.diebox .round{font-size:12px;color:var(--soft);font-variant-numeric:tabular-nums}
+.banner{width:min(100%,460px);text-align:center;font-size:15px;background:var(--pcs);border-radius:999px;padding:4px 14px;transition:background .4s}
+.banner b{font-family:var(--serif)}
+.boardwrap{position:relative;width:min(100%,460px)}
+.board{width:100%}
+.board{display:grid;grid-template-columns:repeat(var(--cols),1fr);gap:5px;touch-action:none;user-select:none;-webkit-user-select:none;background:var(--surface);padding:7px;border-radius:18px}
+.cell{aspect-ratio:1;border-radius:10px;border:0;padding:0;background:var(--card);display:grid;place-items:center;transition:background .25s,transform .15s;position:relative}
+.cell svg{width:60%;height:60%;pointer-events:none}
+.cell .h{fill:none;stroke:var(--line);stroke-width:2}
+.cell .stn{display:none}
+.cell.o0{background:var(--him)}.cell.o1{background:var(--her)}
+.cell.o0 .h,.cell.o1 .h{fill:#F7F4EF;stroke:none;opacity:.92}
+.cell.stone{background:var(--surface)}
+.cell.stone .h{display:none}
+.cell.stone .stn{display:block}
+.cell.stone .mood{display:none}
+.cell.stone.grumpy .mood{display:inline}
+.cell.sel{background:var(--sel);transform:scale(.9)}
+.cell.sel .h{fill:#F7F4EF;stroke:none}
+.cell.tgt{box-shadow:inset 0 0 0 3px var(--warn)}
+.cell.marked{background:var(--warn)}
+.cell.marked .h{fill:#F7F4EF;stroke:none}
+.cell.hover:not(.stone):not(.o0):not(.o1){background:#EFE7D2}
+.actions{width:min(100%,460px);display:flex;align-items:center;justify-content:space-between;gap:8px}
+.count{text-align:center;font-size:15px;font-variant-numeric:tabular-nums;flex:1;min-width:0}
+.count b{font-size:20px}
+.count small{display:block;font-size:11px;color:var(--soft);line-height:1.3}
+.hand{width:min(100%,460px);display:flex;gap:6px;overflow-x:auto;padding:4px 2px 4px}
+.hand .lbl{font-size:13px;color:var(--soft);align-self:center;writing-mode:vertical-rl;flex:none}
+.hcard{flex:none;width:80px;min-height:96px;border-radius:12px;border:1.5px solid var(--line);background:var(--card);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;padding:8px 4px;font-size:13px;text-align:center;transition:transform .2s,opacity .2s;position:relative}
+.hcard:not(:disabled):hover{transform:translateY(-4px)}
+.hcard:disabled{opacity:.45;cursor:default}
+.hcard .ic{width:30px;height:30px;border-radius:50%;display:grid;place-items:center;font-size:17px;color:#3F434C}
+.hcard .v{position:absolute;top:4px;right:6px;font-size:13px;font-weight:bold}
+.hcard small{font-size:10px;color:var(--soft);line-height:1.25}
+.hcard b{font-size:12px;line-height:1.2}
+.hcard.empty{border-style:dashed;color:var(--soft);cursor:default}
+.hcard.new{animation:deal .6s cubic-bezier(.2,1.4,.4,1)}
+@keyframes deal{from{transform:translateY(60px) rotate(-12deg) scale(.6);opacity:0}}
+.helpline{font-size:13px;color:var(--soft);text-align:center;min-height:20px;line-height:1.5}
+.helpline button{border:0;background:var(--warn);color:var(--card);border-radius:999px;padding:2px 12px;font-size:13px;margin-left:6px}
+
+/* center pop text */
+#pop{position:fixed;left:50%;top:42%;transform:translate(-50%,-50%);z-index:25;pointer-events:none;text-align:center;opacity:0}
+#pop .big{font-family:var(--serif);font-weight:700;font-size:96px;line-height:1;color:var(--ink);text-shadow:0 4px 0 var(--card)}
+#pop .sub{font-size:18px;background:var(--card);border-radius:999px;padding:4px 16px;display:inline-block;margin-top:6px}
+#turnCard{position:fixed;left:0;right:0;top:36%;z-index:24;pointer-events:none;display:flex;justify-content:center;opacity:0}
+#turnCard > div{display:flex;align-items:center;gap:14px;background:var(--card);border-radius:28px;padding:12px 26px 12px 16px;border:3px solid var(--pc);box-shadow:0 8px 0 var(--pcs)}
+#turnCard b{font-family:var(--serif);font-size:26px}
+
+/* sheets */
+.overlay{position:fixed;inset:0;background:rgba(60,62,70,.4);display:none;align-items:flex-end;justify-content:center;z-index:10}
+.overlay.on{display:flex}
+.panel{background:var(--surface);width:min(100%,480px);border-radius:24px 24px 0 0;padding:22px 18px calc(24px + env(safe-area-inset-bottom,0px));max-height:92%;overflow:auto;text-align:center;animation:up .35s cubic-bezier(.2,1.2,.4,1)}
+@keyframes up{from{transform:translateY(60px);opacity:0}}
+.panel h3{font-family:var(--serif);font-weight:700;font-size:23px;margin-bottom:6px}
+.panel p{margin:8px 0}
+.panel .btn{margin-top:12px}
+.qcard{background:var(--card);border:1.5px dashed var(--gold);border-radius:16px;padding:22px 18px;margin:10px 0;font-size:20px;line-height:1.6;animation:wiggle .8s ease}
+@keyframes wiggle{20%{transform:rotate(-2deg)}40%{transform:rotate(2deg)}60%{transform:rotate(-1deg)}80%{transform:rotate(1deg)}}
+.evart{display:flex;justify-content:center;margin:6px 0}
+.evart svg{animation:bob 1.4s ease-in-out infinite}
+.rules{text-align:left;display:flex;flex-direction:column;gap:8px;margin:10px 0}
+.rules div{display:grid;grid-template-columns:32px 1fr;gap:10px;align-items:center;background:var(--card);border-radius:14px;padding:9px 12px;font-size:14px}
+.rules .n{font-family:var(--serif);font-size:18px;text-align:center;font-weight:bold}
+.rules .ic{width:32px;height:32px;border-radius:50%;display:grid;place-items:center;color:#3F434C}
+.draws{display:flex;gap:12px;justify-content:center;flex-wrap:wrap;margin:10px 0}
+.flip{width:132px;height:184px;perspective:800px;cursor:pointer}
+.flip .in{position:relative;width:100%;height:100%;transition:transform .7s cubic-bezier(.3,1.4,.5,1);transform-style:preserve-3d}
+.flip.open .in{transform:rotateY(180deg)}
+.flip:not(.open) .in{animation:hover 1.8s ease-in-out infinite}
+@keyframes hover{50%{transform:translateY(-6px)}}
+.flip .fa{position:absolute;inset:0;border-radius:14px;backface-visibility:hidden;-webkit-backface-visibility:hidden;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;padding:10px;border:5px solid var(--pc);overflow:hidden}
+.flip .front{background:var(--night);color:#F1E9D6;font-family:var(--serif);font-size:20px}
+.flip .front::after{content:"";position:absolute;inset:0;background:linear-gradient(115deg,transparent 35%,rgba(255,255,255,.25) 50%,transparent 65%);animation:shine 2.2s infinite}
+@keyframes shine{from{transform:translateX(-120%)}to{transform:translateX(120%)}}
+.flip .back{background:var(--card);transform:rotateY(180deg);font-size:13px}
+.flip .back b{font-size:16px}
+.flip .back .ic{width:44px;height:44px;border-radius:50%;display:grid;place-items:center;font-size:19px;color:#3F434C}
+
+/* slot */
+.slot{background:var(--night);border-radius:22px;padding:14px;margin:10px auto;width:max-content;max-width:100%;position:relative}
+.slot.win{animation:glow 1s ease-in-out 3}
+@keyframes glow{50%{box-shadow:0 0 0 6px var(--gold),0 0 40px 10px rgba(201,174,106,.7)}}
+.reels{display:flex;gap:8px}
+.reel{width:76px;height:84px;border-radius:12px;background:#EEE7DA;overflow:hidden;position:relative}
+.reel .strip{position:absolute;left:0;right:0;top:0}
+.reel .sy{height:84px;display:grid;place-items:center}
+.reel.tense{box-shadow:0 0 0 3px var(--gold)}
+.sym{width:54px;height:54px;border-radius:50%;display:grid;place-items:center;font-size:20px;color:#3F434C;position:relative}
+.sym svg{width:62%;height:62%}
+.sym.sc{background:radial-gradient(circle at 35% 30%,#F3E3B0,#C9AE6A 70%);box-shadow:0 0 0 2px #E9D9A6}
+.sym.sc small{position:absolute;bottom:-2px;right:-4px;font-size:10px;background:#5B6374;color:#F3E3B0;border-radius:6px;padding:0 4px}
+.whose{display:inline-flex;align-items:center;gap:8px;background:var(--pcs);border-radius:999px;padding:4px 14px 4px 6px;font-weight:bold}
+
+/* ending */
+#win,#letter,#card{gap:18px;text-align:center;justify-content:center}
+#win h2{font-family:var(--serif);font-weight:700;font-size:32px}
+#win .winart svg:first-child{animation:jump 1s ease-in-out infinite}
+@keyframes jump{0%,100%{transform:translateY(0)}40%{transform:translateY(-22px) rotate(-6deg)}60%{transform:translateY(-22px) rotate(6deg)}}
+.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;width:min(100%,400px)}
+.stats div{background:var(--card);border-radius:14px;padding:10px 6px;font-size:13px;color:var(--soft)}
+.stats b{display:block;font-size:22px;color:var(--ink);font-variant-numeric:tabular-nums}
+#letter .paper{width:min(100%,440px);background:var(--card);border-radius:6px;padding:30px 26px;text-align:left;font-family:var(--serif);font-size:17px;line-height:2}
+#letter .paper p{margin:0 0 1em;animation:ink .8s ease both}
+@keyframes ink{from{opacity:0;transform:translateY(8px)}}
+#letter .sign{text-align:right}
+#pc{width:min(100%,520px);border-radius:8px;display:block}
+.toast{position:fixed;left:50%;top:calc(14px + env(safe-area-inset-top,0px));transform:translateX(-50%) translateY(-20px);background:var(--ink);color:var(--card);border-radius:999px;padding:8px 18px;font-size:14px;opacity:0;transition:opacity .3s,transform .3s;pointer-events:none;z-index:40;max-width:calc(100% - 32px);text-align:center}
+.toast.on{opacity:1;transform:translateX(-50%)}
+
+/* ===== polish: weather moods, depth, tint ===== */
+body{transition:background-color 1s ease}
+#sky{position:fixed;inset:0;pointer-events:none;z-index:0}
+#sky i{position:absolute;inset:0;opacity:0;transition:opacity 1.2s ease}
+#sky .t0{background:radial-gradient(120% 60% at 15% 0%,rgba(143,163,184,.28),transparent 60%)}
+#sky .t1{background:radial-gradient(120% 60% at 85% 0%,rgba(201,154,147,.28),transparent 60%)}
+#sky .storm{background:linear-gradient(180deg,rgba(92,98,112,.55),rgba(120,124,134,.25) 45%,rgba(140,142,150,.15));}
+#sky .gold{background:radial-gradient(80% 60% at 50% 45%,rgba(233,217,166,.55),transparent 70%)}
+#sky .windy{background:linear-gradient(100deg,transparent 20%,rgba(163,180,196,.22) 50%,transparent 80%);background-size:200% 100%;animation:breeze 2.4s linear infinite}
+@keyframes breeze{from{background-position:100% 0}to{background-position:-100% 0}}
+body[data-turn="0"] #sky .t0, body[data-turn="1"] #sky .t1{opacity:1}
+body[data-mood="storm"] #sky .storm, body[data-mood="gold"] #sky .gold, body[data-mood="wind"] #sky .windy{opacity:1}
+body[data-mood="storm"] #sky .t0, body[data-mood="storm"] #sky .t1{opacity:0}
+body[data-mood="storm"]{--bg:#C4C6CB;--surface:#D0D1D5;--card:#E0E0E3;--line:#B9BBC1;--him-soft:#C7CED6;--her-soft:#D6CACA}
+body[data-mood="storm"] .board{filter:saturate(.55) brightness(.94)}
+body[data-mood="storm"] #ambient{filter:grayscale(1);opacity:.5}
+body[data-mood="storm"] .player,body[data-mood="storm"] .banner{filter:saturate(.6)}
+#sky .clouds{opacity:0;transition:opacity 1.2s}
+body[data-mood="storm"] #sky .clouds{opacity:1}
+#sky .clouds svg{position:absolute;top:2%;width:46vw;max-width:260px;animation:drift 14s linear infinite}
+#sky .clouds svg:nth-child(2){top:9%;width:34vw;animation-duration:19s;animation-delay:-7s}
+#sky .clouds svg:nth-child(3){top:0;width:28vw;animation-duration:24s;animation-delay:-15s}
+@keyframes drift{from{transform:translateX(-50vw)}to{transform:translateX(110vw)}}
+body[data-mood="wind"] .board{animation:sway 1.2s ease-in-out infinite}
+@keyframes sway{50%{transform:skewX(-1.2deg) translateX(2px)}}
+.board{box-shadow:inset 0 1px 0 rgba(255,255,255,.6),0 14px 30px -20px rgba(74,78,88,.55);transition:filter 1s ease,background-color 1s ease}
+.cell{box-shadow:inset 0 -2px 0 rgba(74,78,88,.06)}
+.cell.o0,.cell.o1{box-shadow:inset 0 2px 0 rgba(255,255,255,.28),inset 0 -3px 0 rgba(0,0,0,.12)}
+.cell.stone .stn{filter:drop-shadow(0 2px 1px rgba(74,78,88,.25))}
+.cell.sel{box-shadow:0 0 0 2px #F7F4EF,0 0 14px 2px rgba(217,196,143,.75);animation:selGlow 1.2s ease-in-out infinite}
+@keyframes selGlow{50%{box-shadow:0 0 0 2px #F7F4EF,0 0 20px 5px rgba(217,196,143,.95)}}
+.die{background:linear-gradient(160deg,#FFFDF9,#ECE7DF);box-shadow:0 3px 0 var(--line),0 8px 14px -8px rgba(74,78,88,.45)}
+.die i.on{box-shadow:inset 0 1px 1px rgba(0,0,0,.35)}
+.die.gold{background:linear-gradient(160deg,#F8EFD3,#E3D19C)}
+.btn{box-shadow:0 3px 0 rgba(0,0,0,.18);transition:transform .12s,box-shadow .12s,opacity .2s}
+.btn:active{transform:translateY(2px);box-shadow:0 1px 0 rgba(0,0,0,.18)}
+.btn.ghost{box-shadow:0 2px 0 var(--line)}
+.btn:disabled{box-shadow:none}
+.player.active{box-shadow:0 0 0 4px var(--pcs),0 10px 20px -14px rgba(74,78,88,.5)}
+.banner{box-shadow:inset 0 -2px 0 rgba(74,78,88,.06)}
+.hcard{box-shadow:0 2px 0 var(--line);overflow:hidden}
+.hcard::before{content:"";position:absolute;left:0;right:0;top:0;height:5px;background:var(--cc,var(--line))}
+.overlay{backdrop-filter:blur(2px);-webkit-backdrop-filter:blur(2px)}
+.panel{position:relative;box-shadow:0 -10px 30px -16px rgba(74,78,88,.5)}
+.panel::before{content:"";display:block;width:42px;height:5px;border-radius:5px;background:var(--line);margin:-10px auto 14px}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+
+
+<div id="sky" aria-hidden="true"><i class="t0"></i><i class="t1"></i><i class="windy"></i><i class="gold"></i><i class="storm"></i><i class="clouds"><svg viewBox="0 0 120 50"><path d="M18 44c-12 0-16-14-6-19c-2-12 12-18 21-11c5-11 22-13 29-3c9-6 24 0 23 12c12 1 15 17 3 21z" fill="#7E838F" opacity=".55"/></svg><svg viewBox="0 0 120 50"><path d="M18 44c-12 0-16-14-6-19c-2-12 12-18 21-11c5-11 22-13 29-3c9-6 24 0 23 12c12 1 15 17 3 21z" fill="#7E838F" opacity=".55"/></svg><svg viewBox="0 0 120 50"><path d="M18 44c-12 0-16-14-6-19c-2-12 12-18 21-11c5-11 22-13 29-3c9-6 24 0 23 12c12 1 15 17 3 21z" fill="#7E838F" opacity=".55"/></svg></i></div>
+<div id="ambient" aria-hidden="true"></div>
+
+<section class="screen on" id="intro">
+  <div id="introArt"></div>
+  <h1>愛心圈圈</h1>
+  <p class="muted" id="passHint"></p>
+  <input id="pass" inputmode="numeric" maxlength="4" autocomplete="off" aria-label="通關密碼">
+  <button class="btn" id="go">進入遊戲</button>
+  <p class="muted" id="passErr" aria-live="polite"></p>
+</section>
+
+<section class="screen" id="game">
+  <div class="players">
+    <div class="player p0" id="pl0"></div>
+    <div class="diebox"><div class="dice"><div class="die" id="die"></div><div class="die gold" id="die2" hidden></div></div><span class="round" id="round"></span></div>
+    <div class="player p1" id="pl1"></div>
+  </div>
+  <div class="topline"><div class="banner" id="banner"></div><button class="rulesmini" id="rulesBtn">規則</button></div>
+  <div class="boardwrap"><div class="board" id="board" aria-label="愛心棋盤"></div></div>
+  <div class="helpline" id="help" aria-live="polite"></div>
+  <div class="actions">
+    <button class="btn ghost" id="clearBtn">重新選取</button>
+    <div class="count" id="count"></div>
+    <button class="btn" id="mainBtn">擲骰子</button>
+  </div>
+  <div class="hand" id="hand"></div>
+</section>
+
+<section class="screen" id="win">
+  <div class="winart row" id="winArt" style="align-items:flex-end"></div>
+  <h2 id="winTitle"></h2>
+  <p id="winText"></p>
+  <div class="stats" id="stats"></div>
+  <div class="row"><button class="btn ghost" id="again">再玩一局</button><button class="btn" id="toLetter">打開一週年禮物</button></div>
+</section>
+
+<section class="screen" id="letter">
+  <div class="paper" id="paper"></div>
+  <button class="btn" id="toCard">做一張紀念明信片</button>
+</section>
+
+<section class="screen" id="card">
+  <h2 style="font-family:var(--serif);font-size:24px;font-weight:700">一週年明信片</h2>
+  <img id="pc" alt="一週年紀念明信片，上面是你們最後一局的棋盤">
+  <p class="muted">截圖或長按圖片存到手機</p>
+  <button class="btn ghost" id="again2">再玩一局</button>
+</section>
+
+<div id="turnCard" aria-live="polite"></div>
+<div id="pop" aria-hidden="true"></div>
+<div class="overlay" id="overlay"><div class="panel" id="panel" role="dialog" aria-modal="true"></div></div>
+<div id="fx" aria-hidden="true"></div>
+<div class="toast" id="toast" aria-live="polite"></div>
+
+<script>
+/* ============ 這裡換成你們的真實資料 ============ */
+const CONFIG = {
+  players: ["木木", "Lily"],          // 第一位是他，第二位是你
+  startDate: "2025.09.15",
+  endDate: "2026.09.15",
+  passcode: "0915",
+  passHint: "通關密碼：我們在一起的那天（四位數）",
+  cols: 7, rows: 8,
+  startStones: 4,
+  maxStones: 9,
+  grumpyReasons: [
+    "對方身體不舒服還不看醫生",
+    "生理期前一個禮拜想看木木但看不到",
+    "想吃的餐廳訂不到位置",
+    "想出去玩但時間喬不攏",
+    "人類至今發明不了吃飽就會變瘦的魔法",
+    "點波霸奶茶卻拿到細吸管",
+    "發薪日也是帳單大集合日",
+    "密碼錯三次，還不能用舊密碼",
+    "59秒語音，前55秒都在「呃」跟「那個」跟「我的意思是」",
+    "急著出門，Windows偏偏開始更新",
+    "微波食品的封膜沒成功一次撕到位"
+  ],
+  questions: [
+    "如果落難到荒島，你覺得對方第一天會因為什麼原因淘汰？",
+    "當對方生氣的時候，你認為拿出哪一種食物最容易哄好對方？",
+    "你最想向宇宙許願讓對方改掉什麼毛病？",
+    "說出對方買過最廢的東西",
+    "說出你覺得對方在3天2夜的行李箱裡最不可能忘記帶的東西",
+    "如果對方被外星人綁架，最有可能因為什麼原因被遣送回地球？",
+    "說出在約會時，對方最常做的一個動作",
+    "如果突然獲得 5000 元，你覺得對方百分之百會把它花在什麼地方？",
+    "如果世界突然爆發喪屍病毒，你覺得對方最有可能為了救什麼東西，而差點被喪屍咬到？",
+    "說出在過去這一年的交往裡，對方做過最讓你覺得「天啊，這個人真的是天使」的貼心小舉動。",
+    "說出你覺得對方全身上下，最好捏、最療癒、或是你最喜歡抱著的部位是哪裡？",
+    "從你五年內想要旅遊的3座城市，依照喜愛程度由多到少排序"
+  ],
+  letter: [
+    "親愛的：",
+    "首先，謝謝一起完成這個小遊戲的我們。",
+    "快樂可以很簡單，也可以落在日常裡——玩個小遊戲、躺在床上聊天、一起走路去烘衣服、一起天馬行空，面對未知，享受一路上的風景。",
+    "這一年，我慢慢學會理解自己那些不漂亮、不體面、不那麼可愛的部分，在你的陪伴下，有更多力氣去愛自己，也開始想成為那個能陪伴你的人。",
+    "情緒進入不穩定階段時，幸好，每一次最後都選擇溝通、理解，再靠近一點。也許我們還不完美，但正在一起成為更好的「我們」。",
+    "因為你在，我知道明天還值得期待；因為你在，我才更珍惜時間。",
+    "所以週年快樂。這不只是感謝信，也是邀請信——一起去更遠的地方吧。地點從來不是重點。",
+    "只要是和你一起出發，就很好。"
+  ],
+  herSign: "Lily",
+  easterEgg: {
+    title: "滿到快溢出來的愛",
+    text: "棋盤幾乎沒有空位了，這一年真的被我們塞得滿滿的。",
+    coupon: "約會兌換券：下一次約會由輸的人全權規劃，贏的人只要負責出現。"
+  },
+  postcardLine: "牽起彼此的手，成為更好的自己"
+};
+/* ============================================== */
+
+const CARDS = {
+  erase:  {name:"消除卡", ic:"消", c:"#D2B1AB", w:3, when:"自己回合隨時", vals:[1,2,3,4], desc:v=>`指定消除對方 ${v} 顆愛心`},
+  more:   {name:"多多卡", ic:"多", c:"#D9CBA6", w:3, when:"擲骰後", vals:[1,2], desc:v=>`這回合可以多圈 ${v} 顆`},
+  less:   {name:"撤退卡", ic:"退", c:"#B2BFAD", w:3, when:"擲骰後，點數要大於卡上的數字", vals:[1,2], desc:v=>`這回合可以少圈 ${v} 顆`},
+  skip:   {name:"暫停卡", ic:"停", c:"#AEBCC9", w:2, when:"自己回合隨時", desc:()=>"讓對方暫停一回合"},
+  truth:  {name:"真心話卡", ic:"問", c:"#C9C0D6", w:2, when:"自己回合隨時", desc:()=>"對方再回答一題，你再抽一張"},
+  reroll: {name:"重擲卡", ic:"骰", c:"#C8BFB3", w:3, when:"擲骰後", desc:()=>"不滿意點數就重擲一次"},
+  shield: {name:"守護卡", ic:"盾", c:"#C9AE6A", w:2, when:"放在手上自動生效", desc:()=>"擋下一次自己的愛心被消除"},
+  steal:  {name:"搶奪卡", ic:"搶", c:"#D4B8A8", w:2, when:"自己回合隨時", desc:()=>"隨機搶走對方一張手牌"},
+  expand: {name:"擴建卡", ic:"擴", c:"#A9C2BC", w:1, when:"自己回合隨時，每局只會出現一張", desc:()=>"棋盤多一整排 8 格"}
+};
+const DECK = Object.entries(CARDS).flatMap(([k,v]) => Array(v.w).fill(k));
+
+const $ = s => document.querySelector(s);
+const sleep = ms => new Promise(r => setTimeout(r, REDUCED ? Math.min(ms,120) : ms));
+const rand = n => Math.floor(Math.random()*n);
+const pick = a => a[rand(a.length)];
+const shuffle = a => { a = a.slice(); for (let i=a.length-1;i>0;i--){ const j=rand(i+1); [a[i],a[j]]=[a[j],a[i]]; } return a; };
+const REDUCED = matchMedia("(prefers-reduced-motion: reduce)").matches;
+let COLS = CONFIG.cols, N = COLS*CONFIG.rows; const ROWS = CONFIG.rows;
+const COLORS = ["#8FA3B8","#C99A93"];
+const HEART_D = "M12 20.5s-7.5-4.6-7.5-10.2A4.3 4.3 0 0 1 12 7.6a4.3 4.3 0 0 1 7.5 2.7c0 5.6-7.5 10.2-7.5 10.2z";
+const heartSVG = (fill) => `<svg viewBox="0 0 24 24"><path d="${HEART_D}" fill="${fill}"/></svg>`;
+const CELL_SVG = `<svg viewBox="0 0 24 24" aria-hidden="true"><path class="h" d="${HEART_D}"/><g class="stn"><ellipse cx="12" cy="13" rx="9.5" ry="7.5" fill="#ABA49B"/><ellipse cx="9" cy="10.5" rx="3" ry="1.6" fill="#C2BBB1"/><g class="mood"><path d="M7.5 12.5l2.5 1M16.5 12.5l-2.5 1" stroke="#4A4E58" stroke-width="1.2" stroke-linecap="round"/><path d="M10 17q2-1.4 4 0" stroke="#4A4E58" stroke-width="1.2" fill="none" stroke-linecap="round"/></g></g></svg>`;
+const STONE_SVG = `<svg viewBox="0 0 24 24"><ellipse cx="12" cy="13" rx="9.5" ry="7.5" fill="#ABA49B"/><ellipse cx="9" cy="10.5" rx="3" ry="1.6" fill="#C2BBB1"/><path d="M7.5 12.5l2.5 1M16.5 12.5l-2.5 1" stroke="#4A4E58" stroke-width="1.2" stroke-linecap="round"/><path d="M10 17q2-1.4 4 0" stroke="#4A4E58" stroke-width="1.2" fill="none" stroke-linecap="round"/></svg>`;
+const PIPS = {1:[4],2:[0,8],3:[0,4,8],4:[0,2,6,8],5:[0,2,4,6,8],6:[0,2,3,5,6,8]};
+function animate(el, frames, opts){ if (REDUCED || !el.animate) return Promise.resolve(); return el.animate(frames, opts).finished.catch(()=>{}); }
+
+function face(x1,x2,y,mood){ const mouth = mood==="sad" ? `<path d="M${(x1+x2)/2-4} ${y+11} q4 -4 8 0" stroke="#3F434C" stroke-width="2" fill="none" stroke-linecap="round"/>` : `<path d="M${(x1+x2)/2-3} ${y+8} q3 3 6 0" stroke="#3F434C" stroke-width="2" fill="none" stroke-linecap="round"/>`; return `<circle cx="${x1}" cy="${y}" r="3.2" fill="#3F434C"/><circle cx="${x2}" cy="${y}" r="3.2" fill="#3F434C"/><circle cx="${x1-6}" cy="${y+7}" r="3.6" fill="#D4A7A0" opacity=".7"/><circle cx="${x2+6}" cy="${y+7}" r="3.6" fill="#D4A7A0" opacity=".7"/>${mouth}`;}
+function svgSprout(p, size, mood){
+  const color = p ? "#D8B4AC" : "#A9B8C6";
+  const topArt = p ? [0,72,144,216,288].map(a=>`<ellipse cx="50" cy="8" rx="5" ry="8" fill="#F1E6D6" transform="rotate(${a} 50 15)"/>`).join("") + `<circle cx="50" cy="15" r="4" fill="#D9C48F"/>` : `<path d="M50 22c4-10 14-14 24-12c-4 9-14 13-24 12z" fill="#8FA58A"/>`;
+  return `<svg class="av" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 110" width="${size}" height="${size*1.1}" aria-hidden="true"><path d="M50 34V20" stroke="#7F9479" stroke-width="3" stroke-linecap="round"/>${topArt}<rect x="40" y="88" width="6" height="16" rx="3" fill="#7E7F86"/><rect x="54" y="88" width="6" height="16" rx="3" fill="#7E7F86"/><ellipse cx="50" cy="80" rx="15" ry="16" fill="${color}"/><ellipse cx="50" cy="52" rx="24" ry="26" fill="${color}"/>${face(41,59,52,mood)}</svg>`;
+}
+const svgCloudStone = () => `<svg viewBox="0 0 120 110" width="130" height="119" aria-hidden="true"><path d="M24 44c-10 0-14-12-6-17c-2-11 11-17 19-11c4-10 19-12 25-3c8-5 21 0 20 10c10 1 12 15 3 19z" fill="#9EA1AA"/><path d="M34 52l-4 10M52 54l-3 10M70 52l-4 10" stroke="#A3B4C4" stroke-width="3" stroke-linecap="round"/><ellipse cx="60" cy="88" rx="30" ry="20" fill="#ABA49B"/><ellipse cx="50" cy="80" rx="9" ry="4" fill="#C2BBB1"/><path d="M45 86l7 3M75 86l-7 3" stroke="#4A4E58" stroke-width="3" stroke-linecap="round"/><path d="M54 98q6-4 12 0" stroke="#4A4E58" stroke-width="3" fill="none" stroke-linecap="round"/></svg>`;
+const svgWind = () => `<svg viewBox="0 0 120 90" width="130" height="98" aria-hidden="true"><path d="M10 30h62a12 12 0 1 0-12-12" stroke="#A3B4C4" stroke-width="7" fill="none" stroke-linecap="round"/><path d="M10 50h84a12 12 0 1 1-12 12" stroke="#B2BFAD" stroke-width="7" fill="none" stroke-linecap="round"/><path d="M24 70h30" stroke="#D2B1AB" stroke-width="7" stroke-linecap="round"/><g transform="translate(86 6) rotate(18)">${`<path d="${HEART_D}" fill="#C99A93" transform="scale(1.1)"/>`}</g></svg>`;
+
+/* ---------- FX ---------- */
+const fx = $("#fx");
+function centerOf(el){ const r = el.getBoundingClientRect(); return [r.left+r.width/2, r.top+r.height/2]; }
+function particle(html, x, y, size){ const p = document.createElement("div"); p.className = "p"; p.style.width = p.style.height = size+"px"; p.innerHTML = html; p.style.transform = `translate(${x-size/2}px,${y-size/2}px)`; fx.appendChild(p); return p; }
+function burst(x, y, {n=12, colors=["#C99A93","#8FA3B8","#D9CBA6"], spread=90, size=16, dur=900, up=0}={}){
+  if (REDUCED) return;
+  for (let k=0;k<n;k++){
+    const p = particle(heartSVG(pick(colors)), x, y, size*(.6+Math.random()*.7));
+    const a = Math.random()*Math.PI*2, d = spread*(.4+Math.random()*.8);
+    const dx = Math.cos(a)*d, dy = Math.sin(a)*d - up;
+    p.animate([{transform:`translate(${x-size/2}px,${y-size/2}px) scale(.3)`, opacity:1},{transform:`translate(${x-size/2+dx}px,${y-size/2+dy}px) scale(1) rotate(${(Math.random()-.5)*120}deg)`, opacity:0}], {duration:dur*(.7+Math.random()*.6), easing:"cubic-bezier(.1,.8,.3,1)"}).finished.then(()=>p.remove());
+  }
+}
+function confetti(n=60){
+  if (REDUCED) return;
+  const cols = ["#C99A93","#8FA3B8","#D9CBA6","#B2BFAD","#C9C0D6","#C9AE6A"];
+  for (let k=0;k<n;k++){
+    const x = Math.random()*innerWidth, s = 8+Math.random()*10;
+    const p = document.createElement("div"); p.className = "p";
+    const heart = Math.random()<.4;
+    p.style.width = s+"px"; p.style.height = (heart?s:s*.6)+"px";
+    if (heart) p.innerHTML = heartSVG(pick(cols)); else { p.style.background = pick(cols); p.style.borderRadius = "2px"; }
+    fx.appendChild(p);
+    const drift = (Math.random()-.5)*160;
+    p.animate([{transform:`translate(${x}px,-30px) rotate(0)`},{transform:`translate(${x+drift}px,${innerHeight+30}px) rotate(${(Math.random()-.5)*900}deg)`}], {duration:1800+Math.random()*1600, delay:Math.random()*500, easing:"cubic-bezier(.3,.1,.6,1)", fill:"backwards"}).finished.then(()=>p.remove());
+  }
+}
+async function popText(big, sub){
+  const el = $("#pop"); el.innerHTML = `<div class="big">${big}</div>${sub?`<div class="sub">${sub}</div>`:""}`;
+  el.style.opacity = 1;
+  await animate(el, [{transform:"translate(-50%,-50%) scale(.2)",opacity:0},{transform:"translate(-50%,-50%) scale(1.25)",opacity:1,offset:.35},{transform:"translate(-50%,-50%) scale(1)",opacity:1,offset:.55},{transform:"translate(-50%,-60%) scale(1)",opacity:0}], {duration:1100, easing:"ease-out"});
+  el.style.opacity = 0;
+}
+async function turnCard(p, text){
+  const el = $("#turnCard"); el.className = "p"+p;
+  el.innerHTML = `<div>${svgSprout(p,52, text.includes("暫停")?"sad":"")}<b>${text}</b></div>`;
+  el.style.opacity = 1;
+  await animate(el, [{transform:"translateX(-110%)",opacity:0},{transform:"translateX(4%)",opacity:1,offset:.3},{transform:"translateX(0)",opacity:1,offset:.7},{transform:"translateX(110%)",opacity:0}], {duration:2300, easing:"cubic-bezier(.2,.8,.3,1)"});
+  el.style.opacity = 0;
+}
+function shakeBoard(){ animate($("#board"), [{transform:"translate(0,0)"},{transform:"translate(-6px,3px)"},{transform:"translate(5px,-3px)"},{transform:"translate(-3px,2px)"},{transform:"translate(0,0)"}], {duration:420}); }
+function buildAmbient(){
+  const box = $("#ambient"); const cols = ["#C99A93","#8FA3B8","#D9CBA6","#B2BFAD"];
+  for (let k=0;k<12;k++){ const i = document.createElement("i"); i.style.left = (k*8.3+Math.random()*5)+"%"; i.style.animationDuration = (14+Math.random()*12)+"s"; i.style.animationDelay = (-Math.random()*20)+"s"; const s = 12+Math.random()*16; i.style.width = i.style.height = s+"px"; i.innerHTML = heartSVG(pick(cols)); box.appendChild(i); }
+}
+
+const TURN_SAY = ["🤔 圈哪裡好","😤 看我的","🎲 拜託大一點","😎 穩了穩了","🫣 好緊張","🧐 讓我想想"];
+const WAIT_SAY = ["👀 盯著你","🍿 看戲中","🙏 別圈那裡","😪 好慢喔","🤭 偷笑中","🤞 骰小一點"];
+let sayPrev = ["",""];
+function setMood(m){ if (m) document.body.dataset.mood = m; else delete document.body.dataset.mood; }
+function say(p, t){ if (!G) return; G.say[p] = t; render(); }
+
+/* ---------- UI helpers ---------- */
+const overlay = $("#overlay"), panel = $("#panel");
+function openSheet(html){ panel.innerHTML = html; overlay.classList.add("on"); panel.scrollTop = 0; panel.style.animation = "none"; void panel.offsetWidth; panel.style.animation = ""; return panel; }
+function closeSheet(){ overlay.classList.remove("on"); }
+const clickOnce = el => new Promise(r => el.addEventListener("click", r, {once:true}));
+function toast(t){ const el=$("#toast"); el.textContent=t; el.classList.add("on"); clearTimeout(toast._t); toast._t=setTimeout(()=>el.classList.remove("on"),2400); }
+function show(id){ document.querySelectorAll(".screen").forEach(s=>s.classList.toggle("on", s.id===id)); scrollTo(0,0); }
+function pips(el, n){ el.innerHTML = Array.from({length:9},(_,i)=>`<i class="${n && PIPS[n].includes(i)?'on':''}"></i>`).join(""); }
+const nm = p => CONFIG.players[p];
+const cellEl = i => $("#board").children[i];
+
+/* ---------- state ---------- */
+let G, busy = false;
+function newGame(){
+  COLS = CONFIG.cols; N = COLS*ROWS; G = null;
+  const cells = Array.from({length:N}, () => ({o:null, grumpy:false}));
+  shuffle([...Array(N).keys()]).slice(0, CONFIG.startStones).forEach(i => cells[i].o = "stone");
+  G = { cells, turn:rand(2), round:1, phase:"roll", roll:0, dice:[], sel:new Set(), mods:{more:0, less:0},
+        hands:[[],[]], skip:[false,false], bonusDie:[false,false], erase:null,
+        sinceQ:0, sinceWind:0, sinceStone:0, turns:0, scMiss:0, newCard:[-1,-1],
+        stats:{blown:0, questions:0, cards:0}, over:false, nextSlot:rand(2), windDir:null, expandSeen:false, say:["",""], egg:false };
+  G.hands[0].push(drawCard()); G.hands[1].push(drawCard());
+}
+function drawCard(){ const deck = G && G.expandSeen ? DECK.filter(k=>k!=="expand") : DECK; const k = pick(deck), c = CARDS[k]; if (k==="expand" && G) G.expandSeen = true; return {k, v: c.vals ? pick(c.vals) : 0}; }
+const neighbors = i => { const r = Math.floor(i/COLS), c = i%COLS, n = []; if (r>0) n.push(i-COLS); if (r<ROWS-1) n.push(i+COLS); if (c>0) n.push(i-1); if (c<COLS-1) n.push(i+1); return n; };
+function maxFreeComponent(){
+  const seen = new Uint8Array(N); let best = 0;
+  for (let i=0;i<N;i++){ if (seen[i] || G.cells[i].o!==null) continue; let size = 0; const st = [i]; seen[i] = 1;
+    while (st.length){ const j = st.pop(); size++; for (const k of neighbors(j)) if (!seen[k] && G.cells[k].o===null){ seen[k]=1; st.push(k); } }
+    best = Math.max(best, size); }
+  return best;
+}
+function isConnected(set){
+  const arr = [...set]; if (!arr.length) return false;
+  const seen = new Set([arr[0]]), st = [arr[0]];
+  while (st.length){ const j = st.pop(); for (const k of neighbors(j)) if (set.has(k) && !seen.has(k)){ seen.add(k); st.push(k); } }
+  return seen.size === set.size;
+}
+const range = () => [Math.max(1, G.roll - G.mods.less), G.roll + G.mods.more];
+const ownedIdx = p => G.cells.map((c,i)=>c.o===p?i:-1).filter(i=>i>=0);
+const emptyIdx = () => G.cells.map((c,i)=>c.o===null?i:-1).filter(i=>i>=0);
+const stoneIdx = () => G.cells.map((c,i)=>c.o==="stone"?i:-1).filter(i=>i>=0);
+
+/* ---------- render ---------- */
+function buildBoard(){
+  const b = $("#board"); b.style.setProperty("--cols", COLS); b.innerHTML = "";
+  for (let i=0;i<N;i++){ const c = document.createElement("button"); c.className = "cell"; c.dataset.i = i; c.innerHTML = CELL_SVG; c.setAttribute("aria-label", `第 ${Math.floor(i/COLS)+1} 列第 ${i%COLS+1} 格`); b.appendChild(c); }
+}
+function paintCell(i){
+  const c = G.cells[i], el = cellEl(i);
+  const keep = [...el.classList].filter(x => x==="pop");
+  el.className = "cell " + keep.join(" ") + (c.o==="stone" ? " stone"+(c.grumpy?" grumpy":"") : c.o===0 ? " o0" : c.o===1 ? " o1" : "")
+    + (G.sel.has(i) ? " sel" : "") + (G.erase && c.o===1-G.turn ? (G.erase.sel.has(i) ? " marked" : " tgt") : "");
+}
+function canUse(card){
+  const me = G.turn, op = 1-me, c = CARDS[card.k];
+  if (busy || G.over) return [false,""];
+  if (G.erase) return [false,"消除中"];
+  if (card.k==="shield") return [false,"自動生效"];
+  if (card.k==="erase" && !ownedIdx(op).length) return [false,"對方沒有愛心"];
+  if (["more","less","reroll"].includes(card.k) && G.phase!=="pick") return [false,"擲骰後可用"];
+  if (card.k==="less" && G.roll - G.mods.less - card.v < 1) return [false,`點數要大於 ${G.mods.less + card.v}`];
+  if (card.k==="skip" && G.skip[op]) return [false,"對方已暫停"];
+  if (card.k==="steal" && !G.hands[op].length) return [false,"對方沒有手牌"];
+  return [true,""];
+}
+function render(){
+  for (let i=0;i<N;i++) paintCell(i);
+  [0,1].forEach(p => {
+    const tags = []; if (G.skip[p]) tags.push("下回合暫停"); if (G.bonusDie[p]) tags.push("加骰"); if (G.hands[p].some(c=>c.k==="shield")) tags.push("守護中");
+    const el = $("#pl"+p); el.classList.toggle("active", p===G.turn);
+    const fresh = G.say[p] !== sayPrev[p]; sayPrev[p] = G.say[p];
+    el.innerHTML = `${svgSprout(p,32)}<span class="nm">${nm(p)}</span><span class="st">手牌 ${G.hands[p].length} 張</span>${tags.length?`<span class="tag">${tags.join("、")}</span>`:""}<span class="say${fresh?' new':''}">${G.say[p]||"🙂"}</span>`;
+  });
+  document.body.dataset.turn = G.turn;
+  const bn = $("#banner"); bn.className = "banner p"+G.turn; bn.innerHTML = `<b>${nm(G.turn)}</b> 的回合`;
+  $("#round").textContent = `第 ${G.round} 回合`;
+  const main = $("#mainBtn"), count = $("#count"), help = $("#help"), clr = $("#clearBtn");
+  if (G.erase){
+    main.textContent = "確認消除"; main.disabled = G.erase.sel.size === 0; clr.textContent = "取消"; clr.disabled = false;
+    count.innerHTML = `消除 <b>${G.erase.sel.size}</b>／${G.erase.n}<small>點${nm(1-G.turn)}的愛心</small>`;
+    help.textContent = `選 ${G.erase.n} 顆${nm(1-G.turn)}的愛心，不用相連`;
+  } else if (G.phase==="roll"){
+    clr.textContent = "重新選取"; main.textContent = G.bonusDie[G.turn] ? "擲兩顆骰子" : "擲骰子"; main.disabled = busy; clr.disabled = true;
+    count.innerHTML = `<small>先擲骰子決定要圈幾顆</small>`;
+    help.textContent = "多多卡、撤退卡、重擲卡要擲骰後才能用";
+  } else {
+    const [lo,hi] = range();
+    clr.textContent = "重新選取"; main.textContent = "確認圈起"; clr.disabled = !G.sel.size || busy;
+    main.disabled = busy || G.sel.size < lo || G.sel.size > hi;
+    count.innerHTML = `已選 <b>${G.sel.size}</b>／${lo===hi ? lo : lo+"～"+hi}<small>只能上下左右相連</small>`;
+    const stuck = maxFreeComponent() < lo;
+    if (stuck && !busy){ help.innerHTML = `找不到能連著圈 ${lo} 顆的空位<button id="giveUp">認輸</button>`; $("#giveUp").onclick = giveUp; }
+    else help.textContent = stuck ? `找不到能連著圈 ${lo} 顆的空位` : "點或拖曳空的愛心來選取";
+  }
+  renderHand();
+  requestAnimationFrame(fitBoard);
+}
+function renderHand(){
+  const h = $("#hand"), hand = G.hands[G.turn];
+  h.innerHTML = `<span class="lbl">${nm(G.turn)}的手牌</span>` + (hand.length ? hand.map((card,i) => {
+    const c = CARDS[card.k], [ok, why] = canUse(card);
+    return `<button class="hcard${G.newCard[G.turn]===i?' new':''}" style="--cc:${c.c}" data-i="${i}" ${ok?"":"disabled"}><span class="ic" style="background:${c.c}">${c.ic}</span>${card.v?`<span class="v">${card.k==="less"?"−":card.k==="more"?"+":"×"}${card.v}</span>`:""}<b>${c.name}</b><small>${ok ? c.desc(card.v) : why}</small></button>`;
+  }).join("") : `<div class="hcard empty">還沒有卡</div>`);
+  G.newCard[G.turn] = -1;
+  h.querySelectorAll(".hcard[data-i]").forEach(b => b.onclick = () => useCard(+b.dataset.i));
+}
+
+/* ---------- selection ---------- */
+let drag = null;
+function cellFromPoint(x,y){ const el = document.elementFromPoint(x,y); return el && el.classList && el.classList.contains("cell") ? +el.dataset.i : null; }
+function applySel(i){
+  if (i==null || !drag) return;
+  if (G.erase){
+    if (G.cells[i].o!==1-G.turn) return;
+    if (drag.mode==="add"){ if (!G.erase.sel.has(i) && G.erase.sel.size < G.erase.n) G.erase.sel.add(i); } else G.erase.sel.delete(i);
+    render(); return;
+  }
+  if (G.phase!=="pick" || busy || G.cells[i].o!==null) return;
+  if (drag.mode==="add"){ const hi = range()[1]; if (!G.sel.has(i) && G.sel.size < hi){ G.sel.add(i); const [x,y] = centerOf(cellEl(i)); burst(x,y,{n:3,spread:24,size:10,dur:500,colors:["#D9C48F"]}); } }
+  else G.sel.delete(i);
+  render();
+}
+$("#board").addEventListener("pointerdown", e => {
+  const i = cellFromPoint(e.clientX, e.clientY); if (i==null) return;
+  const set = G.erase ? G.erase.sel : G.sel;
+  drag = {mode: set.has(i) ? "remove" : "add"}; applySel(i);
+});
+$("#board").addEventListener("pointermove", e => { if (drag) applySel(cellFromPoint(e.clientX, e.clientY)); });
+addEventListener("pointerup", () => drag = null);
+addEventListener("pointercancel", () => drag = null);
+
+/* ---------- dice ---------- */
+async function tumble(el, final){
+  const spin = animate(el, [{transform:"translateY(0) rotate(0)"},{transform:"translateY(-26px) rotate(200deg) scale(.9)",offset:.4},{transform:"translateY(0) rotate(360deg) scale(1.05)",offset:.75},{transform:"translateY(-6px) rotate(370deg)",offset:.88},{transform:"translateY(0) rotate(360deg)"}], {duration:720, easing:"ease-out"});
+  for (let k=0;k<10;k++){ pips(el, rand(6)+1); await sleep(60); }
+  pips(el, final); await spin;
+}
+async function rollDice(forceSingle){
+  busy = true; render();
+  G.sel.clear();
+  const two = !forceSingle && G.bonusDie[G.turn];
+  const a = rand(6)+1, b = rand(6)+1;
+  $("#die2").hidden = !two;
+  await Promise.all([tumble($("#die"), a), two ? tumble($("#die2"), b) : null]);
+  if (two){
+    G.bonusDie[G.turn] = false;
+    const p = openSheet(`<h3>加骰：擲出 ${a} 和 ${b}</h3><p>選一個當這回合的點數</p><div class="row"><button class="btn ghost" data-v="${a}">用 ${a}</button><button class="btn ghost" data-v="${b}">用 ${b}</button><button class="btn goldb" data-v="${a+b}">加起來 ${a+b}</button></div>`);
+    G.roll = await new Promise(r => p.querySelectorAll("[data-v]").forEach(x => x.onclick = () => r(+x.dataset.v)));
+    closeSheet();
+  } else G.roll = a;
+  G.phase = "pick";
+  G.say[G.turn] = G.roll>=6 ? "😱 也太多" : G.roll>=5 ? "😵 好多喔" : G.roll<=1 ? "😌 輕鬆" : G.roll===2 ? "😊 還行" : G.say[G.turn];
+  const [x,y] = centerOf($("#die")); burst(x,y,{n:10,spread:60,size:12});
+  await popText(G.roll, `圈 ${G.roll} 顆愛心`);
+  busy = false; render();
+}
+
+/* ---------- turn flow ---------- */
+$("#mainBtn").onclick = async () => {
+  if (busy || G.over) return;
+  if (G.erase) return confirmErase();
+  if (G.phase==="roll") return rollDice();
+  const [lo,hi] = range();
+  if (G.sel.size<lo || G.sel.size>hi) return;
+  if (!isConnected(G.sel)){ toast("選的愛心要上下左右連在一起"); animate($("#board"),[{transform:"translateX(0)"},{transform:"translateX(-5px)"},{transform:"translateX(5px)"},{transform:"translateX(0)"}],{duration:280}); return; }
+  busy = true;
+  const ids = [...G.sel]; G.sel.clear();
+  for (const i of ids){
+    G.cells[i].o = G.turn; paintCell(i);
+    const el = cellEl(i); animate(el, [{transform:"scale(.4)"},{transform:"scale(1.25)"},{transform:"scale(1)"}], {duration:380, easing:"cubic-bezier(.2,1.6,.4,1)"});
+    const [x,y] = centerOf(el); burst(x,y,{n:5,spread:40,size:12,colors:[COLORS[G.turn],"#F7F4EF"],up:20});
+    await sleep(90);
+  }
+  render();
+  await sleep(350);
+  await endTurn(); busy = false; render();
+};
+$("#clearBtn").onclick = () => {
+  if (G.erase){ G.erase = null; render(); return; }
+  G.sel.clear(); render();
+};
+const giveUp = () => {
+  const p = openSheet(`<div class="evart">${svgSprout(G.turn,80,"sad")}</div><h3>確定認輸嗎？</h3><p>${nm(G.turn)}這回合找不到能圈的地方。</p><div class="row"><button class="btn ghost" id="no">再想想</button><button class="btn warn" id="yes">認輸</button></div>`);
+  p.querySelector("#no").onclick = closeSheet;
+  p.querySelector("#yes").onclick = () => { closeSheet(); finish(1-G.turn); };
+};
+
+async function endTurn(){
+  G.turns++; G.sinceQ++; G.sinceWind++; G.sinceStone++;
+  G.mods = {more:0, less:0}; G.phase = "roll"; G.roll = 0; pips($("#die"),0); $("#die2").hidden = true;
+  render();
+  await randomEvents();
+  if (G.over) return;
+  await nextPlayer();
+}
+async function nextPlayer(){
+  let next = 1-G.turn;
+  if (next===0) G.round++;
+  if (G.skip[next]){
+    G.skip[next] = false; G.turn = next; G.say[next] = "😴 被暫停了"; render();
+    await turnCard(next, `${nm(next)}暫停一回合`);
+    next = 1-next; if (next===0) G.round++;
+  }
+  G.turn = next; G.say[next] = pick(TURN_SAY); G.say[1-next] = pick(WAIT_SAY); render();
+  await turnCard(next, `換${nm(next)}了`);
+}
+
+/* ---------- random events ---------- */
+async function randomEvents(){
+  let events = 0;
+  const stoneChance = G.turns<2 ? 0 : Math.min(.4, .08 + G.sinceStone*.05);
+  if (Math.random()<stoneChance){ G.sinceStone = 0; await grumpyStones(); events++; }
+  const placed = ownedIdx(0).length + ownedIdx(1).length;
+  const windChance = G.turns<3 || placed<3 ? 0 : Math.min(.55, .12 + G.sinceWind*.07);
+  if (events<2 && Math.random()<windChance){ G.sinceWind = 0; await naughtyWind(); events++; }
+  const qChance = G.sinceQ>=5 ? 1 : G.sinceQ>=3 ? .45 : 0;
+  if (events<2 && Math.random()<qChance){ G.sinceQ = 0; await questionTime(); }
+}
+
+async function dropStone(b, grumpy, dur=1000){
+  const eb = cellEl(b), [bx,by] = centerOf(eb), size = eb.offsetWidth, s = size*.7;
+  const ghost = particle(STONE_SVG, bx, by, s);
+  await animate(ghost, [{transform:`translate(${bx-s/2}px,-90px) rotate(-40deg)`},{transform:`translate(${bx-s/2}px,${by-s/2}px) rotate(0)`,offset:.7},{transform:`translate(${bx-s/2}px,${by-s/2-22}px) rotate(6deg)`,offset:.82},{transform:`translate(${bx-s/2}px,${by-s/2}px)`,offset:.92},{transform:`translate(${bx-s/2}px,${by-s/2-5}px)`,offset:.96},{transform:`translate(${bx-s/2}px,${by-s/2}px)`}], {duration:dur, easing:"cubic-bezier(.5,0,1,1)"});
+  ghost.remove();
+  G.cells[b].o = "stone"; G.cells[b].grumpy = grumpy; paintCell(b);
+  shakeBoard(); burst(bx,by,{n:8,spread:36,size:10,colors:["#ABA49B","#C2BBB1"]});
+}
+function boardBanner(text, top){
+  const r = $("#board").getBoundingClientRect();
+  const el = document.createElement("div"); el.className = "p";
+  el.style.cssText = `width:${r.width}px;text-align:center;transform:translate(${r.left}px,${top ? r.top + 14 : r.top + r.height/2 - 30}px)`;
+  el.innerHTML = `<span style="display:inline-block;background:var(--card);border-radius:999px;padding:8px 20px;font-size:20px;font-family:var(--serif);font-weight:bold;box-shadow:0 4px 0 var(--line)">${text}</span>`;
+  fx.appendChild(el);
+  animate(el.firstChild, [{transform:"scale(.4)",opacity:0},{transform:"scale(1.1)",opacity:1,offset:.6},{transform:"scale(1)",opacity:1}], {duration:450, easing:"ease-out"});
+  return async () => { await animate(el, [{opacity:1},{opacity:0}], {duration:400}); el.remove(); };
+}
+async function grumpyCloud(){
+  if (REDUCED) return;
+  const r = $("#board").getBoundingClientRect(), w = Math.min(160, r.width*.4), h = w*.75;
+  const cx = r.left + r.width/2 - w/2, cy = r.top - h*.25;
+  const cloud = particle(`<svg viewBox="0 0 120 70" width="${w}" height="${h}"><path d="M24 44c-10 0-14-12-6-17c-2-11 11-17 19-11c4-10 19-12 25-3c8-5 21 0 20 10c10 1 12 15 3 19z" fill="#9EA1AA"/><path d="M40 30l6 3M66 30l-6 3M48 40q5-4 10 0" stroke="#4A4E58" stroke-width="2.5" fill="none" stroke-linecap="round"/></svg>`, 0, 0, w);
+  cloud.style.height = h+"px";
+  await animate(cloud, [{transform:`translate(${-w}px,${cy}px)`},{transform:`translate(${cx}px,${cy}px)`}], {duration:1400, easing:"cubic-bezier(.2,.8,.3,1)"});
+  cloud.style.transform = `translate(${cx}px,${cy}px)`;
+  const rain = setInterval(() => { for (let k=0;k<3;k++){ const x = cx + 20 + Math.random()*(w-40), d = document.createElement("div"); d.className = "p"; d.style.cssText = "width:3px;height:12px;border-radius:2px;background:#A3B4C4"; fx.appendChild(d); d.animate([{transform:`translate(${x}px,${cy+h*.7}px)`,opacity:.9},{transform:`translate(${x}px,${r.top + r.height*.6}px)`,opacity:0}],{duration:700}).finished.then(()=>d.remove()); } }, 120);
+  animate(cloud, [{transform:`translate(${cx}px,${cy}px)`},{transform:`translate(${cx-8}px,${cy+4}px)`},{transform:`translate(${cx+8}px,${cy}px)`},{transform:`translate(${cx}px,${cy}px)`}], {duration:900, iterations:2});
+  await sleep(1800);
+  clearInterval(rain);
+  return async () => { await animate(cloud, [{transform:`translate(${cx}px,${cy}px)`,opacity:1},{transform:`translate(${innerWidth}px,${cy-30}px)`,opacity:0}], {duration:900, easing:"ease-in"}); cloud.remove(); };
+}
+function svgAngry(size){
+  const puff = (x,y,k) => `<g class="puff" style="transform-box:fill-box;transform-origin:50% 50%"><path d="M${x} ${y}c-6 0-8-7-3-10c-1-6 6-9 10-6c3-5 11-4 12 2c6 0 8 8 2 10z" transform="scale(${k})" transform-origin="${x} ${y}" fill="#F1ECE5" stroke="#B9B2A8" stroke-width="1.6"/></g>`;
+  return `<svg viewBox="0 0 120 134" width="${size}" height="${size*1.12}" aria-hidden="true">
+    ${puff(14,30,1)}${puff(94,22,1.1)}${puff(100,48,.8)}
+    <path d="M4 70h12M2 80h14M6 90h10" stroke="#B9B2A8" stroke-width="2.5" stroke-linecap="round"/>
+    <path d="M30 56c-4 20-2 40 6 50h48c8-10 10-30 6-50z" fill="#8A6F60"/>
+    <rect x="50" y="104" width="7" height="18" rx="3.5" fill="#7E7F86"/>
+    <g class="kleg" style="transform-box:fill-box;transform-origin:50% 0"><rect x="63" y="104" width="7" height="18" rx="3.5" fill="#7E7F86"/><ellipse cx="68" cy="123" rx="7" ry="4" fill="#7E7F86"/></g>
+    <path d="M44 86q16-6 32 0l4 22H40z" fill="#C99A93"/>
+    <g class="fists">
+      <path d="M46 92l-12-16" stroke="#C99A93" stroke-width="8" stroke-linecap="round"/><path d="M74 92l12-16" stroke="#C99A93" stroke-width="8" stroke-linecap="round"/>
+      <circle cx="32" cy="72" r="7.5" fill="#EBC3B8" stroke="#B88C80" stroke-width="1.5"/><path d="M28 70h7M28 74h7" stroke="#B88C80" stroke-width="1.3" stroke-linecap="round"/>
+      <circle cx="88" cy="72" r="7.5" fill="#EBC3B8" stroke="#B88C80" stroke-width="1.5"/><path d="M85 70h7M85 74h7" stroke="#B88C80" stroke-width="1.3" stroke-linecap="round"/>
+    </g>
+    <circle cx="60" cy="58" r="27" fill="#E2A79B"/>
+    <path d="M33 56c0-20 12-30 27-30s27 10 27 30c-6-8-12-12-18-13c-3 5-9 8-16 8c-5 0-9-1-12-3c-3 2-6 5-8 8z" fill="#8A6F60"/>
+    <g transform="translate(80 33)">${[0,72,144,216,288].map(a=>`<ellipse cx="0" cy="-5" rx="3" ry="5" fill="#F1E6D6" transform="rotate(${a})"/>`).join("")}<circle r="2.6" fill="#D9C48F"/></g>
+    <path d="M44 52l11 4M76 52l-11 4" stroke="#3F434C" stroke-width="3.2" stroke-linecap="round"/>
+    <path d="M45 59l9 1.5l-8 3z" fill="#3F434C"/><path d="M75 59l-9 1.5l8 3z" fill="#3F434C"/>
+    <ellipse cx="44" cy="68" rx="5" ry="3" fill="#C9786C" opacity=".75"/><ellipse cx="76" cy="68" rx="5" ry="3" fill="#C9786C" opacity=".75"/>
+    <path d="M52 69q8-4 16 0q-1 10-8 11q-7-1-8-11z" fill="#8E4A45"/><path d="M55 76q5-3 10 0q-2 3-5 3q-3 0-5-3z" fill="#D98A80"/>
+    <g class="vein" style="transform-box:fill-box;transform-origin:50% 50%" stroke="#C0554B" stroke-width="3.2" fill="none" stroke-linecap="round"><path d="M38 30q4 4 0 8"/><path d="M48 30q-4 4 0 8"/><path d="M39 27q4-4 8 0"/><path d="M39 41q4 4 8 0"/></g>
+  </svg>`;
+}
+function angryLily(){
+  const r = $("#board").getBoundingClientRect(), size = Math.min(130, r.width*.34);
+  const x = r.left + r.width/2 - size/2, y = r.top + r.height/2 - size*.55;
+  const el = particle(svgAngry(size), 0, 0, size); el.style.height = size*1.12+"px"; el.style.transform = `translate(${x}px,${y}px)`;
+  const leg = el.querySelector(".kleg"), vein = el.querySelector(".vein"), fists = el.querySelector(".fists");
+  el.querySelectorAll(".puff").forEach((p,i) => animate(p, [{transform:"scale(.8)",opacity:.6},{transform:"scale(1.15)",opacity:1},{transform:"scale(.8)",opacity:.6}], {duration:800+i*150, iterations:Infinity}));
+  animate(fists, [{transform:"translateY(0)"},{transform:"translateY(-4px)"},{transform:"translateY(0)"}], {duration:260, iterations:Infinity});
+  const at = (sx=1,dx=0,dy=0,rot=0) => `translate(${x+dx}px,${y+dy}px) rotate(${rot}deg) scale(${sx})`;
+  return {
+    async enter(){
+      await animate(el, [{transform:at(.2,0,40),opacity:0},{transform:at(1.2),opacity:1,offset:.6},{transform:at(1)}], {duration:600, easing:"cubic-bezier(.2,1.5,.4,1)"});
+      animate(vein, [{transform:"scale(1)"},{transform:"scale(1.4)"},{transform:"scale(1)"}], {duration:500, iterations:Infinity});
+      await animate(el, [{transform:at(1,0,0,0)},{transform:at(1,-6,0,-8)},{transform:at(1,6,0,8)},{transform:at(1,-6,0,-8)},{transform:at(1,0,0,0)}], {duration:700});
+    },
+    async kick(dir){
+      await animate(leg, [{transform:"rotate(0)"},{transform:`rotate(${dir*40}deg)`}], {duration:350, easing:"ease-out", fill:"forwards"});
+      animate(el, [{transform:at(1)},{transform:at(1.08,-dir*10,-6,-dir*6)},{transform:at(1)}], {duration:400});
+      await animate(leg, [{transform:`rotate(${dir*40}deg)`},{transform:`rotate(${-dir*75}deg)`}], {duration:140, easing:"ease-in", fill:"forwards"});
+      setTimeout(() => animate(leg, [{transform:`rotate(${-dir*75}deg)`},{transform:"rotate(0)"}], {duration:400, fill:"forwards"}), 250);
+    },
+    async stomp(){
+      for (let k=0;k<2;k++){ await animate(el, [{transform:at(1)},{transform:at(1,0,-34)},{transform:at(1.05,0,4)},{transform:at(1)}], {duration:480, easing:"ease-in-out"}); shakeBoard(); }
+    },
+    async leave(){ await animate(el, [{transform:at(1),opacity:1},{transform:at(.3,0,30),opacity:0}], {duration:450}); el.remove(); }
+  };
+}
+async function grumpyStones(){
+  const empties = emptyIdx(), stones = stoneIdx();
+  const move = stones.length>0 && (stones.length>=CONFIG.maxStones || Math.random()<.5);
+  const n = 1 + rand(2);
+  const who = 1, reason = pick(CONFIG.grumpyReasons);
+  if (!empties.length) return;
+  setMood("storm");
+  const p = openSheet(`<div class="evart">${svgAngry(110)}</div><h3>${nm(who)}不開心了</h3><p>因為「${reason}」，${nm(who)}有點鬧彆扭。</p><p class="muted">${move ? `${n} 顆石頭被踢到別的地方` : `天上掉下 ${n} 顆石頭`}</p><button class="btn" id="ok">好啦好啦</button>`);
+  await clickOnce(p.querySelector("#ok")); closeSheet();
+  const targets = shuffle(empties).slice(0, n);
+  G.say[1] = "😤 哼！"; render();
+  setMood("storm"); await sleep(900);
+  const lily = REDUCED ? null : angryLily();
+  if (lily) await lily.enter();
+  const close = boardBanner(move ? "Lily 用力踢石頭！" : "Lily 氣到跺腳！", true);
+  if (move){
+    const from = shuffle(stones).slice(0, Math.min(n, targets.length));
+    for (let k=0;k<from.length;k++){
+      const a = from[k], b = targets[k], ea = cellEl(a), eb = cellEl(b);
+      const [ax,ay] = centerOf(ea), [bx,by] = centerOf(eb), sz = ea.offsetWidth*.7;
+      if (lily) await lily.kick(bx < ax ? -1 : 1);
+      animate(ea, [{transform:"rotate(0)"},{transform:"rotate(-15deg)"},{transform:"rotate(0)"}], {duration:200});
+      G.cells[a].o = null; G.cells[a].grumpy = false; paintCell(a);
+      const ghost = particle(STONE_SVG, ax, ay, sz);
+      await animate(ghost, [{transform:`translate(${ax-sz/2}px,${ay-sz/2}px)`},{transform:`translate(${(ax+bx)/2-sz/2}px,${Math.min(ay,by)-110}px) rotate(200deg) scale(1.2)`},{transform:`translate(${bx-sz/2}px,${by-sz/2}px) rotate(360deg)`}], {duration:1100, easing:"ease-in-out"});
+      ghost.remove();
+      G.cells[b].o = "stone"; G.cells[b].grumpy = true; paintCell(b);
+      animate(eb, [{transform:"scale(1.3)"},{transform:"scale(.9)"},{transform:"scale(1)"}], {duration:350});
+      shakeBoard(); await sleep(300);
+    }
+  } else {
+    if (lily) await lily.stomp();
+    for (const b of targets){ await dropStone(b, true, 1100); await sleep(300); }
+  }
+  await sleep(400);
+  await close(); if (lily) await lily.leave();
+  setMood(null); await sleep(500);
+  render();
+}
+
+function consumeShield(p){ const i = G.hands[p].findIndex(c=>c.k==="shield"); if (i<0) return false; G.hands[p].splice(i,1); return true; }
+async function blowAway(idxs, why){
+  // shield check per owner
+  const owners = [...new Set(idxs.map(i=>G.cells[i].o))];
+  const blocked = owners.filter(o => consumeShield(o));
+  blocked.forEach(o => { G.say[o] = "😌 好險有盾"; toast(`${nm(o)}的守護卡擋下了${why}`); const [x,y] = centerOf($("#pl"+o)); burst(x,y,{n:14,spread:60,colors:["#C9AE6A","#EADFBF"]}); });
+  const list = idxs.filter(i => !blocked.includes(G.cells[i].o));
+  [...new Set(list.map(i=>G.cells[i].o))].forEach(o => G.say[o] = why==="消除卡" ? "😡 太過分了" : "😭 我的愛心");
+  for (const i of list){
+    const el = cellEl(i), [x,y] = centerOf(el), size = el.offsetWidth*.6, color = COLORS[G.cells[i].o];
+    G.cells[i].o = null; paintCell(i); G.stats.blown++;
+    const h = particle(heartSVG(color), x, y, size);
+    const [wx,wy] = G.windDir || [.8,-.6], far = Math.max(innerWidth, innerHeight);
+    animate(h, [{transform:`translate(${x-size/2}px,${y-size/2}px) rotate(0)`,opacity:1},{transform:`translate(${x-size/2-wy*30+wx*50}px,${y-size/2+wx*30+wy*50-40}px) rotate(200deg) scale(1.3)`,opacity:1,offset:.35},{transform:`translate(${x-size/2+wx*far}px,${y-size/2+wy*far-60}px) rotate(720deg) scale(.6)`,opacity:0}], {duration:1700, easing:"ease-in"}).then(()=>h.remove());
+    await sleep(320);
+  }
+  render(); return list.length;
+}
+async function naughtyWind(){
+  const mode = Math.random()<.5 ? "one" : "both";
+  const has = [0,1].filter(p => ownedIdx(p).length);
+  let pool, who;
+  if (mode==="one" || has.length<2){ who = pick(has); pool = ownedIdx(who); } else pool = ownedIdx(0).concat(ownedIdx(1));
+  const n = Math.min(pool.length, 1 + rand(4));
+  const p = openSheet(`<div class="evart">${svgWind()}</div><h3>調皮風來了</h3><p style="font-size:18px">${who!=null ? `它盯上了${nm(who)}的愛心` : "它在棋盤上亂吹一通"}，最多吹走 ${n} 顆。</p><button class="btn" id="ok">抓緊愛心</button>`);
+  await clickOnce(p.querySelector("#ok")); closeSheet();
+  await sleep(250);
+  const dirs = {"橫向":[1,0], "直向":[0,1], "斜向":[Math.SQRT1_2,Math.SQRT1_2], "反斜向":[-Math.SQRT1_2,Math.SQRT1_2]};
+  const dname = pick(Object.keys(dirs)), [dx,dy] = dirs[dname];
+  setMood("wind");
+  const close = boardBanner(`調皮風吹過來了`);
+  const r = $("#board").getBoundingClientRect(), cx = r.left + r.width/2, cy = r.top + r.height/2, ang = Math.atan2(dy,dx)*180/Math.PI;
+  const reach = Math.hypot(r.width, r.height)/2 + 120;
+  if (!REDUCED){
+    for (let k=0;k<22;k++){
+      const off = (Math.random()-.5)*Math.max(r.width,r.height), len = 70+Math.random()*130;
+      const px = cx - dy*off, py = cy + dx*off;
+      const s2 = document.createElement("div"); s2.className = "p"; s2.style.width = len+"px"; s2.style.height = "4px"; s2.style.borderRadius = "4px";
+      s2.style.background = pick(["#A3B4C4","#B2BFAD","#F7F4EF","#C9C0D6"]); fx.appendChild(s2);
+      s2.animate([{transform:`translate(${px - dx*reach - len/2}px,${py - dy*reach}px) rotate(${ang}deg)`,opacity:0},{opacity:.95,offset:.25},{opacity:.95,offset:.75},{transform:`translate(${px + dx*reach - len/2}px,${py + dy*reach}px) rotate(${ang}deg)`,opacity:0}],{duration:1100+Math.random()*500,delay:k*110,easing:"linear",fill:"backwards"}).finished.then(()=>s2.remove());
+    }
+    animate($("#board"), [{transform:"translate(0,0)"},{transform:`translate(${dx*4}px,${dy*4}px)`},{transform:"translate(0,0)"}], {duration:500, iterations:3});
+    await sleep(900);
+  }
+  G.windDir = [dx,dy];
+  const got = await blowAway(shuffle(pool).slice(0,n), "調皮風");
+  await sleep(1200);
+  await close(); G.windDir = null; setMood(null);
+  if (got) toast(`調皮風吹走了 ${got} 顆愛心`);
+}
+
+/* ---------- question & rewards ---------- */
+const usedQ = new Set();
+function nextQuestion(){ let pool = CONFIG.questions.filter((_,i)=>!usedQ.has(i)); if (!pool.length){ usedQ.clear(); pool = CONFIG.questions; } const q = pick(pool); usedQ.add(CONFIG.questions.indexOf(q)); return q; }
+function addCard(p, card){ G.hands[p].push(card); if (G.hands[p].length>4) G.hands[p].shift(); G.newCard[p] = G.hands[p].length-1; }
+function flipHTML(p, card){ const c = CARDS[card.k]; return `<div class="flip p${p}"><div class="in"><div class="fa front">${nm(p)}</div><div class="fa back"><span class="ic" style="background:${c.c}">${c.ic}</span><b>${c.name}</b><span>${c.desc(card.v)}</span></div></div></div>`; }
+async function giveCards(list, title){
+  const got = list.map(p => [p, drawCard()]);
+  const p = openSheet(`<h3>${title}</h3><p class="muted">點卡片翻開</p><div class="draws">${got.map(([pl,c])=>flipHTML(pl,c)).join("")}</div><p class="muted" style="font-size:12px">手牌最多 4 張，超過會丟掉最舊的一張</p><button class="btn" id="ok" disabled>收進手牌</button>`);
+  const flips = [...p.querySelectorAll(".flip")], ok = p.querySelector("#ok");
+  flips.forEach(f => f.onclick = () => { if (f.classList.contains("open")) return; f.classList.add("open"); const [x,y] = centerOf(f); setTimeout(()=>burst(x,y,{n:12,spread:80}),300); if (flips.every(x=>x.classList.contains("open"))) ok.disabled = false; });
+  await clickOnce(ok); closeSheet();
+  got.forEach(([pl,c]) => addCard(pl,c));
+  render();
+}
+async function questionTime(){
+  G.stats.questions++;
+  const q = nextQuestion();
+  const p = openSheet(`<h3>問答時間</h3><p class="muted">兩個人都要回答，答完有獎勵</p><div class="qcard">${q}</div><button class="btn" id="ok">我們都回答了</button>`);
+  await clickOnce(p.querySelector("#ok")); closeSheet();
+  if (Math.random()<.5) await giveCards([0,1], "各抽一張卡");
+  else { const p = G.nextSlot; G.nextSlot = 1-p; await slotFor(p); }
+}
+
+/* ---------- slot ---------- */
+const SYM = {
+  blue:{html:`<span class="sym" style="background:#D3DCE5">${heartSVG("#8FA3B8")}</span>`},
+  pink:{html:`<span class="sym" style="background:#EDD9D4">${heartSVG("#C99A93")}</span>`},
+  card:{html:`<span class="sym" style="background:#E3DCC9;font-size:22px">卡</span>`},
+  sc:{html:`<span class="sym sc">${heartSVG("#FFF6DC")}<small>SC</small></span>`}
+};
+function spinSym(){ return Math.random()<.3 ? "sc" : pick(["blue","pink","card"]); }
+async function slotFor(p){
+  const panel = openSheet(`<h3>幸運拉霸</h3><span class="whose p${p}">${svgSprout(p,28)}${nm(p)}拉</span>
+    <div class="slot" id="slot"><div class="reels">${[0,1,2].map(i=>`<div class="reel" id="r${i}"><div class="strip">${`<div class="sy">${SYM.sc.html}</div>`}</div></div>`).join("")}</div></div>
+    <p id="smsg" class="muted">三個黃金愛心 SC 有特別獎勵，兩個一樣就抽一張卡</p><button class="btn goldb" id="pull">拉一下</button>`);
+  const pull = panel.querySelector("#pull");
+  await clickOnce(pull); pull.disabled = true;
+  let res = [spinSym(), spinSym(), spinSym()];
+  if (G.scMiss>=6) res = ["sc","sc","sc"];
+  const reels = [0,1,2].map(i => panel.querySelector("#r"+i));
+  const tense = res[0]==="sc" && res[1]==="sc";
+  await Promise.all(reels.map(async (r,i) => {
+    const count = 16 + i*6 + (i===2 && tense ? 12 : 0);
+    const syms = Array.from({length:count}, () => pick(["blue","pink","card","sc"])); syms.push(res[i]);
+    const strip = r.querySelector(".strip"); strip.innerHTML = syms.map(s=>`<div class="sy">${SYM[s].html}</div>`).join("");
+    const h = 84, dist = (syms.length-1)*h;
+    if (i===2 && tense){ await sleep(900); r.classList.add("tense"); panel.querySelector("#smsg").textContent = "兩個 SC 了……"; }
+    await animate(strip, [{transform:"translateY(0)"},{transform:`translateY(${-dist-10}px)`,offset:.92},{transform:`translateY(${-dist}px)`}], {duration:1200+i*450+(i===2&&tense?900:0), easing:"cubic-bezier(.15,.7,.25,1)", fill:"forwards"});
+    strip.style.transform = `translateY(${-dist}px)`;
+  }));
+  reels[2].classList.remove("tense");
+  const msg = panel.querySelector("#smsg"); msg.classList.remove("muted");
+  const same = (a,b) => a===b;
+  let reward = null;
+  if (res.every(s=>s==="sc")){
+    G.scMiss = 0;
+    panel.querySelector("#slot").classList.add("win"); confetti(90); setMood("gold"); setTimeout(()=>setMood(null), 3500);
+    reward = Math.random()<.5 ? "bonus" : "double"; G.say[p] = "🤩 中大獎";
+    msg.innerHTML = reward==="bonus" ? `<b>JACKPOT！</b>${nm(p)}下回合可以擲兩顆骰子，點數自己選或加總` : `<b>JACKPOT！</b>${nm(p)}一次抽兩張卡`;
+  } else {
+    G.scMiss++;
+    const pair = same(res[0],res[1]) || same(res[1],res[2]) || same(res[0],res[2]);
+    const triple = res[0]===res[1] && res[1]===res[2];
+    if (triple){ reward = "pick3"; msg.innerHTML = "<b>三個一樣！</b>從三張蓋著的卡裡挑一張"; panel.querySelector("#slot").classList.add("win"); const [x,y] = centerOf(panel.querySelector("#slot")); burst(x,y,{n:20,spread:120}); }
+    else if (pair){ reward = "card"; msg.textContent = "有兩個一樣，多抽一張隨機卡"; const [x,y] = centerOf(panel.querySelector("#slot")); burst(x,y,{n:12,spread:90}); }
+    else msg.textContent = "沒有連線，下次再來";
+  }
+  pull.textContent = "繼續"; pull.disabled = false;
+  await clickOnce(pull); closeSheet();
+  if (reward==="bonus"){ G.bonusDie[p] = true; render(); }
+  if (reward==="double") await giveCards([p,p], `${nm(p)}抽兩張`);
+  if (reward==="card") await giveCards([p], `${nm(p)}抽一張`);
+  if (reward==="pick3") await pickOne(p);
+}
+async function pickOne(p){
+  const opts = [drawCard(), drawCard(), drawCard()];
+  const sh = openSheet(`<h3>${nm(p)}挑一張</h3><p class="muted">點一張翻開，就是你的了</p><div class="draws">${opts.map(c=>flipHTML(p,c)).join("")}</div><button class="btn" id="ok" disabled>收進手牌</button>`);
+  sh.querySelectorAll(".flip .front").forEach(f => f.textContent = "？");
+  const flips = [...sh.querySelectorAll(".flip")], ok = sh.querySelector("#ok");
+  const chosen = await new Promise(r => flips.forEach((f,i) => f.onclick = () => r(i)));
+  flips.forEach(f => f.onclick = null);
+  flips[chosen].classList.add("open"); const [x,y] = centerOf(flips[chosen]); setTimeout(()=>burst(x,y,{n:14,spread:80}),300);
+  await sleep(900);
+  flips.forEach((f,i) => { if (i!==chosen){ f.classList.add("open"); f.style.opacity = ".45"; } });
+  ok.disabled = false;
+  await clickOnce(ok); closeSheet();
+  addCard(p, opts[chosen]); render();
+}
+
+/* ---------- cards ---------- */
+async function useCard(i){
+  const card = G.hands[G.turn][i]; if (!card) return;
+  const [ok] = canUse(card); if (!ok) return;
+  const me = G.turn, op = 1-me, c = CARDS[card.k];
+  const p = openSheet(`<div class="draws"><div class="flip open p${me}" style="cursor:default"><div class="in"><div class="fa front"></div><div class="fa back"><span class="ic" style="background:${c.c}">${c.ic}</span><b>${c.name}</b><span>${c.desc(card.v)}</span></div></div></div></div><div class="row"><button class="btn ghost" id="no">先不要</button><button class="btn" id="yes">使用</button></div>`);
+  const yes = await new Promise(r => { p.querySelector("#no").onclick = () => r(false); p.querySelector("#yes").onclick = () => r(true); });
+  closeSheet(); if (!yes) return;
+  if (card.k==="erase"){ G.erase = {n: Math.min(card.v, ownedIdx(op).length), sel:new Set(), card}; render(); return; }
+  G.hands[me].splice(i,1); G.stats.cards++;
+  busy = true; render();
+  await popText(c.ic, c.name);
+  if (card.k==="more"){ G.mods.more += card.v; toast(`這回合可以多圈 ${card.v} 顆`); }
+  if (card.k==="less"){ G.mods.less += card.v; toast(`這回合可以少圈 ${card.v} 顆`); }
+  if (card.k==="skip"){ G.skip[op] = true; G.say[op] = "😮 不會吧"; const [x,y] = centerOf($("#pl"+op)); burst(x,y,{n:12,spread:50,colors:["#AEBCC9"]}); toast(`${nm(op)}下回合暫停`); }
+  if (card.k==="reroll"){ busy = false; await rollDice(true); busy = true; }
+  if (card.k==="steal") await stealCard(me, op);
+  if (card.k==="expand") await expandBoard();
+  if (card.k==="truth"){
+    const q = nextQuestion(); G.stats.questions++;
+    const s = openSheet(`<h3>真心話</h3><span class="whose p${op}">${svgSprout(op,28)}${nm(op)}要回答</span><div class="qcard">${q}</div><button class="btn" id="ok">${nm(op)}回答了</button>`);
+    await clickOnce(s.querySelector("#ok")); closeSheet();
+    await giveCards([me], `${nm(me)}再抽一張`);
+  }
+  busy = false; render();
+}
+async function stealCard(me, op){
+  const j = rand(G.hands[op].length), got = G.hands[op].splice(j,1)[0];
+  render();
+  const [ox,oy] = centerOf($("#pl"+op)), [mx,my] = centerOf($("#pl"+me));
+  if (!REDUCED){
+    const f = particle(`<div style="width:100%;height:100%;border-radius:8px;background:var(--night);border:3px solid ${COLORS[op]}"></div>`, ox, oy, 46);
+    f.style.height = "62px";
+    await animate(f, [{transform:`translate(${ox-23}px,${oy-31}px) rotate(0)`},{transform:`translate(${(ox+mx)/2-23}px,${Math.min(oy,my)-90}px) rotate(200deg) scale(1.3)`},{transform:`translate(${mx-23}px,${my-31}px) rotate(360deg)`}], {duration:1100, easing:"ease-in-out"});
+    f.remove(); burst(mx,my,{n:14,spread:60,colors:[COLORS[me],"#D9CBA6"]});
+  }
+  const c = CARDS[got.k];
+  const s = openSheet(`<h3>搶到了！</h3><p>${nm(me)}從${nm(op)}手上搶走了這張</p><div class="draws"><div class="flip open p${me}" style="cursor:default"><div class="in"><div class="fa front"></div><div class="fa back"><span class="ic" style="background:${c.c}">${c.ic}</span><b>${c.name}</b><span>${c.desc(got.v)}</span></div></div></div></div><button class="btn" id="ok">收進手牌</button>`);
+  await clickOnce(s.querySelector("#ok")); closeSheet();
+  addCard(me, got); G.say[me] = "😏 謝啦"; G.say[op] = "🥲 我的卡"; render();
+}
+async function expandBoard(){
+  const right = Math.random()<.5, old = G.cells, oc = COLS;
+  G.sel.clear();
+  COLS = oc + 1; N = COLS*ROWS;
+  const cells = [];
+  for (let r=0;r<ROWS;r++){
+    const row = old.slice(r*oc, r*oc+oc), fresh = {o:null, grumpy:false};
+    if (right) row.push(fresh); else row.unshift(fresh);
+    cells.push(...row);
+  }
+  G.cells = cells;
+  buildBoard(); render(); fitBoard();
+  const newIdx = Array.from({length:ROWS}, (_,r) => r*COLS + (right ? COLS-1 : 0));
+  const close = boardBanner("棋盤變大了！");
+  for (const i of newIdx){
+    const el = cellEl(i);
+    animate(el, [{transform:`translateX(${right?60:-60}px) scale(.3)`,opacity:0},{transform:"translateX(0) scale(1.15)",opacity:1,offset:.7},{transform:"scale(1)",opacity:1}], {duration:550, easing:"cubic-bezier(.2,1.4,.4,1)", fill:"backwards"});
+    const [x,y] = centerOf(el); setTimeout(()=>burst(x,y,{n:5,spread:30,size:10,colors:["#A9C2BC","#F7F4EF"]}),300);
+    await sleep(140);
+  }
+  await sleep(700); await close(); G.say[G.turn] = "🏗️ 擴建完成";
+}
+async function confirmErase(){
+  const e = G.erase; if (!e || !e.sel.size) return;
+  const idx = G.hands[G.turn].indexOf(e.card); if (idx>=0) G.hands[G.turn].splice(idx,1);
+  G.stats.cards++; G.erase = null; busy = true; render();
+  const list = [...e.sel];
+  list.forEach(i => { const [x,y] = centerOf(cellEl(i)); burst(x,y,{n:8,spread:50,size:12,colors:[COLORS[1-G.turn],"#9C6F69"]}); });
+  const got = await blowAway(list, "消除卡");
+  if (got) toast(`消除了${nm(1-G.turn)} ${got} 顆愛心`);
+  busy = false; render();
+}
+
+/* ---------- ending ---------- */
+async function finish(winner){
+  G.over = true;
+  const egg = emptyIdx().length <= (COLS > CONFIG.cols ? 5 : 4);
+  if (egg){ G.egg = true; busy = true; await eggBoard(); busy = false; }
+  show("win"); confetti(120);
+  if (egg) setTimeout(openEgg, 1600);
+  $("#winArt").innerHTML = `${svgSprout(winner,110)}${svgSprout(1-winner,72,"sad")}`;
+  $("#winTitle").textContent = `${nm(winner)}贏了`;
+  $("#winText").textContent = `${nm(1-winner)}在第 ${G.round} 回合找不到地方圈了。`;
+  $("#stats").innerHTML = `<div><b>${G.stats.questions}</b>回答的問題</div><div><b>${G.stats.cards}</b>用掉的卡</div><div><b>${G.stats.blown}</b>被吹散的愛心</div>`;
+}
+async function eggBoard(){
+  setMood("gold");
+  const close = boardBanner("棋盤快被愛塞滿了…");
+  const cx = (COLS-1)/2, cy = (ROWS-1)/2;
+  const cells = [...$("#board").children];
+  await Promise.all(cells.map((el,i) => { const d = Math.hypot(i%COLS-cx, Math.floor(i/COLS)-cy); return animate(el, [{transform:"scale(1)",filter:"brightness(1)"},{transform:"scale(1.18)",filter:"brightness(1.25)",offset:.4},{transform:"scale(1)",filter:"brightness(1)"}], {duration:700, delay:d*160}); }));
+  if (!REDUCED){
+    const r = $("#board").getBoundingClientRect(), size = Math.min(r.width, r.height)*.8;
+    const h = particle(heartSVG("#C9AE6A"), r.left+r.width/2, r.top+r.height/2, size);
+    await animate(h, [{transform:`translate(${r.left+r.width/2-size/2}px,${r.top+r.height/2-size/2}px) scale(.1)`,opacity:0},{transform:`translate(${r.left+r.width/2-size/2}px,${r.top+r.height/2-size/2}px) scale(1.05)`,opacity:.95,offset:.5},{transform:`translate(${r.left+r.width/2-size/2}px,${r.top+r.height/2-size/2}px) scale(1)`,opacity:.95,offset:.75},{transform:`translate(${r.left+r.width/2-size/2}px,${r.top+r.height/2-size/2}px) scale(1.6)`,opacity:0}], {duration:2200, easing:"ease-out"});
+    h.remove();
+    burst(r.left+r.width/2, r.top+r.height/2, {n:40, spread:200, size:20, colors:["#C9AE6A","#EADFBF","#C99A93","#8FA3B8"]});
+  }
+  await sleep(600); await close(); setMood(null);
+}
+async function openEgg(){
+  const e = CONFIG.easterEgg;
+  const p = openSheet(`<h3>隱藏彩蛋：${e.title}</h3><p>${e.text}</p><div class="draws egg"><div class="flip p1"><div class="in"><div class="fa front">點我翻開</div><div class="fa back">${e.coupon}</div></div></div></div><button class="btn" id="ok" disabled>收下兌換券</button>`);
+  const f = p.querySelector(".flip"), ok = p.querySelector("#ok");
+  f.onclick = () => { if (f.classList.contains("open")) return; f.classList.add("open"); confetti(60); ok.disabled = false; };
+  await clickOnce(ok); closeSheet();
+}
+async function startGame(){
+  setMood(null);
+  newGame(); show("game"); buildBoard(); pips($("#die"),0); $("#die2").hidden = true; render();
+  const stones = stoneIdx();
+  stones.forEach(i => G.cells[i].o = null); busy = true; render();
+  const p = openSheet(rulesHTML() + `<button class="btn" id="ok">開始</button>`);
+  await clickOnce(p.querySelector("#ok")); closeSheet();
+  await sleep(300);
+  for (const i of stones){ await dropStone(i, false, 900); await sleep(150); }
+  busy = false; render();
+  G.say[G.turn] = pick(TURN_SAY); G.say[1-G.turn] = pick(WAIT_SAY); render();
+  await turnCard(G.turn, `${nm(G.turn)}先開始`);
+}
+function rulesHTML(){
+  return `<h3>遊戲規則</h3><div class="rules">
+    <div><span class="n">1</span><span>輪流擲骰子，骰到幾點就圈幾顆上下左右相連的空愛心。</span></div>
+    <div><span class="n">2</span><span>輪到你時找不到能連著圈的空位就輸了。石頭不能圈。</span></div>
+    <div><span class="n">3</span><span>有人不開心時，天上會掉石頭，或把石頭踢到別的地方。</span></div>
+    <div><span class="n">4</span><span>調皮風會隨機吹走最多 4 顆愛心，可能只吹一個人，也可能兩個人都吹。</span></div>
+    <div><span class="n">5</span><span>問答時間兩人都回答後，會各抽一張卡，或由兩人輪流其中一人拉霸。拉霸轉出三個黃金愛心 SC 有特別獎勵。</span></div>
+  </div><h3 style="font-size:18px">卡片</h3><div class="rules">${Object.values(CARDS).map(c=>`<div><span class="ic" style="background:${c.c}">${c.ic}</span><span><b>${c.name}</b>　${c.vals ? c.desc("<i>"+c.vals.join("/")+"</i>") : c.desc()}<br><span class="muted" style="font-size:12px">${c.when}</span></span></div>`).join("")}</div>`;
+}
+$("#rulesBtn").onclick = () => { const p = openSheet(rulesHTML() + `<button class="btn" id="ok">知道了</button>`); p.querySelector("#ok").onclick = closeSheet; };
+$("#again").onclick = startGame; $("#again2").onclick = startGame;
+$("#toLetter").onclick = () => { $("#paper").innerHTML = CONFIG.letter.map((t,i)=>`<p style="animation-delay:${i*.5}s">${t}</p>`).join("") + `<p class="sign" style="animation-delay:${CONFIG.letter.length*.5}s">${CONFIG.herSign}</p>`; show("letter"); };
+$("#toCard").onclick = async () => { show("card"); await buildPostcard(); };
+
+/* ---------- postcard ---------- */
+function svgImg(svg){ return new Promise((res,rej)=>{ const im = new Image(); im.onload=()=>res(im); im.onerror=rej; im.src = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(svg); }); }
+function heartPath(x, cx, cy, s){ x.beginPath(); x.moveTo(cx, cy+s*.42); x.bezierCurveTo(cx-s*.62, cy, cx-s*.5, cy-s*.48, cx, cy-s*.2); x.bezierCurveTo(cx+s*.5, cy-s*.48, cx+s*.62, cy, cx, cy+s*.42); x.fill(); }
+function rr(x, a, b, w, h, r){ x.beginPath(); x.moveTo(a+r,b); x.arcTo(a+w,b,a+w,b+h,r); x.arcTo(a+w,b+h,a,b+h,r); x.arcTo(a,b+h,a,b,r); x.arcTo(a,b,a+w,b,r); x.fill(); }
+let pcCanvas = null;
+async function buildPostcard(){
+  try { await Promise.all([document.fonts.load('60px "Huninn"'), document.fonts.load('700 100px "Noto Serif TC"')]); } catch(e){}
+  const W=1800, H=1200, cv=document.createElement("canvas"); cv.width=W; cv.height=H; const x = cv.getContext("2d");
+  x.fillStyle = "#E4E0D8"; x.fillRect(0,0,W,H);
+  x.strokeStyle = "#CFC8BE"; x.lineWidth = 3; x.strokeRect(50,50,W-100,H-100);
+  const cell = Math.floor(Math.min(760/COLS, 940/ROWS)), gap = 10, bw = COLS*cell, bh = ROWS*cell, bx = W-140-bw, by = (H-bh)/2;
+  x.fillStyle = "#EFEBE5"; rr(x, bx-22, by-22, bw+44, bh+44, 30);
+  G.cells.forEach((c,i) => {
+    const cx = bx + (i%COLS)*cell, cy = by + Math.floor(i/COLS)*cell;
+    x.fillStyle = c.o==="stone" ? "#ABA49B" : c.o===0 ? COLORS[0] : c.o===1 ? COLORS[1] : "#F7F4EF";
+    rr(x, cx+gap/2, cy+gap/2, cell-gap, cell-gap, 14);
+    if (c.o===0 || c.o===1){ x.fillStyle = "rgba(247,244,239,.92)"; heartPath(x, cx+cell/2, cy+cell/2+2, cell*.5); }
+  });
+  x.fillStyle = "#4A4E58"; x.textBaseline = "alphabetic";
+  x.font = '700 116px "Noto Serif TC","Songti TC",serif'; x.fillText("一週年快樂", 130, 300);
+  x.font = '56px "Huninn","PingFang TC",sans-serif'; x.fillText(`${nm(0)} ＆ ${nm(1)}`, 134, 410);
+  x.fillStyle = "#80838B"; x.font = '38px "Huninn","PingFang TC",sans-serif'; x.fillText(`${CONFIG.startDate} — ${CONFIG.endDate}`, 134, 478);
+  x.fillStyle = "#4A4E58"; x.font = '42px "Huninn","PingFang TC",sans-serif';
+  let cur = "", ly = 600; const maxW = bx-134-80;
+  for (const ch of CONFIG.postcardLine){ if (x.measureText(cur+ch).width > maxW){ x.fillText(cur,134,ly); cur = ch; ly += 62; } else cur += ch; }
+  if (cur) x.fillText(cur,134,ly);
+  x.fillStyle = "#80838B"; x.font = '32px "Huninn","PingFang TC",sans-serif'; x.fillText("我們一起圈出來的愛心", 134, ly+80);
+  try { const a = await svgImg(svgSprout(0,200)); x.drawImage(a, 130, 830, 200, 220); const b = await svgImg(svgSprout(1,200)); x.drawImage(b, 340, 830, 200, 220); } catch(e){}
+  if (G.egg){
+    x.save(); x.translate(bx+bw-30, by-10); x.rotate(-.18);
+    x.fillStyle = "#C9AE6A"; x.beginPath(); x.arc(0,0,92,0,Math.PI*2); x.fill();
+    x.strokeStyle = "#F7F4EF"; x.lineWidth = 5; x.beginPath(); x.arc(0,0,78,0,Math.PI*2); x.stroke();
+    x.fillStyle = "#F7F4EF"; x.textAlign = "center"; x.font = '700 40px "Noto Serif TC",serif'; x.fillText("彩蛋", 0, -4);
+    x.font = '28px "Huninn","PingFang TC",sans-serif'; x.fillText("滿滿的愛", 0, 38); x.restore(); x.textAlign = "left";
+  }
+  pcCanvas = cv; $("#pc").src = cv.toDataURL("image/jpeg", .92);
+}
+/* ---------- fit board to screen ---------- */
+function fitBoard(){
+  const wrap = document.querySelector("#game .boardwrap"), b = $("#board");
+  if (!wrap || !$("#game").classList.contains("on")) return;
+  b.style.width = "100%";
+  const w = wrap.clientWidth, h = wrap.clientHeight, pad = 14, gap = 5;
+  const cell = Math.max(24, Math.min((w - pad - gap*(COLS-1))/COLS, (h - pad - gap*(ROWS-1))/ROWS));
+  b.style.width = Math.floor(cell*COLS + gap*(COLS-1) + pad) + "px";
+}
+addEventListener("resize", fitBoard);
+if (window.visualViewport) visualViewport.addEventListener("resize", fitBoard);
+new MutationObserver(() => requestAnimationFrame(fitBoard)).observe($("#game"), {attributes:true, attributeFilter:["class"]});
+
+/* ---------- start ---------- */
+buildAmbient();
+$("#introArt").innerHTML = `<div class="row" style="align-items:flex-end"><span class="bob">${svgSprout(0,90)}</span><span class="bob">${svgSprout(1,90)}</span></div>`;
+$("#passHint").textContent = CONFIG.passHint;
+function tryPass(){
+  if ($("#pass").value.trim()===CONFIG.passcode){ const [x,y] = centerOf($("#go")); burst(x,y,{n:24,spread:140}); setTimeout(startGame, 350); }
+  else { $("#passErr").textContent = "不是這天喔，再想想"; animate($("#pass"), [{transform:"translateX(0)"},{transform:"translateX(-8px)"},{transform:"translateX(8px)"},{transform:"translateX(0)"}], {duration:350}); }
+}
+$("#go").onclick = tryPass;
+$("#pass").addEventListener("keydown", e => { if (e.key==="Enter") tryPass(); });
+</script>
+
+</body>
+</html>
